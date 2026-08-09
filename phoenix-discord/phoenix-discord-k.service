@@ -1,0 +1,24 @@
+[Unit]
+Description=Phoenix Discord Bot — K
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=darkfibr
+WorkingDirectory=%h/.phoenix/phoenix-discord
+EnvironmentFile=%h/.phoenix/phoenix-discord/discord_k.env
+Environment=PHOENIX_DISCORD_AGENT=k
+Environment=PHOENIX_API_HOST=100.93.183.39
+Environment=PHOENIX_API_PORT=9802
+Environment=PHOENIX_API_SECRET=Jay4480
+Environment=PHOENIX_V2_DB=%h/.phoenix/v2/phoenix_v2.db
+Environment=PYTHONPATH=%h/.phoenix/v2/core
+ExecStart=%h/.local/bin/python3 %h/.phoenix/phoenix-discord/bot.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:%h/.phoenix/logs/discord-k.log
+StandardError=append:%h/.phoenix/logs/discord-k.log
+
+[Install]
+WantedBy=default.target

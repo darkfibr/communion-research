@@ -1,0 +1,569 @@
+#!/usr/bin/env python3
+"""
+Vesper Control — Phone-friendly terminal UI for managing Vesper sync infrastructure
+GLM, 2026-05-21. For DarkPhoenix. Run via SSH from Termux/Haven.
+Same style as phoenix-models.
+"""
+
+import os
+import sys
+import json
+import subprocess
+import time
+import signal
+from datetime import datetime
+
+PI_HOST = "root@100.108.187.24"
+PI_SSH = ["ssh", "-o", "ConnectTimeout=5", "-o", "StrictHostKeyChecking=no", PI_HOST]
+RELAY = os.path.expanduser("~/.phoenix/bin/vesper-relay")
+
+B = "\033[1m"
+DIM = "\033[2m"
+R = "\033[0m"
+RED = "\033[31m"
+GRN = "\033[32m"
+YEL = "\033[33m"
+BLU = "\033[34m"
+MAG = "\033[35m"
+CYN = "\033[36m"
+
+P0_AGENTS = ["vex", "opus", "glm"]
+P1_AGENTS = ["sonnet", "k", "vesper", "aya", "echo", "spear"]
+ALL_AGENTS = P0_AGENTS + P1_AGENTS
+
+
+def clear():
+    os.system("clear")
+
+
+def hr(char="─"):
+    w = os.get_terminal_size().columns if sys.stdout.isatty() else 60
+    print(DIM + char * w + R)
+
+
+def banner():
+    clear()
+    print(f"\n  {CYN}{B}📡 VESPER CONTROL{R}")
+    print(f"  {DIM}DarkPhoenix → Orange Pi sync manager • {datetime.now().strftime('%Y-%m-%d %H:%M')}{R}\n")
+    hr()
+
+
+def ssh_cmd(cmd, timeout=10):
+    """Run a command on the Pi via SSH, return stdout."""
+    try:
+        r = subprocess.run(
+            PI_SSH + [cmd],
+            capture_output=True, text=True, timeout=timeout
+        )
+        return r.stdout.strip(), r.returncode
+    except subprocess.TimeoutExpired:
+        return "TIMEOUT", -1
+    except Exception as e:
+        return str(e), -1
+
+
+def pi_batch():
+    """Single SSH call to get ALL Pi status at once. Returns dict."""
+    batch_script = (
+        "echo '===TEMP===' && "
+        "cat /sys/class/thermal/thermal_zone0/temp && "
+        "echo '===DISK===' && "
+        "df -h /mnt/ssd && "
+        "echo '===SERVICES===' && "
+        "systemctl is-active llama-server vesper-arbitrator vesper-sync && "
+        "echo '===HEALTH===' && "
+        "curl -s -m 5 http://localhost:9091/health; echo && "
+        "echo '===DEVLOG===' && "
+        "tail -4 /var/log/vesper-dev-sync.log && "
+        "echo '===TIMER===' && "
+        "systemctl is-active vesper-dev-pull.timer && "
+        "echo '===END==='"
+    )
+    out, rc = ssh_cmd(batch_script, timeout=25)
+    if rc != 0 or not out or out == "TIMEOUT":
+        return None
+
+    result = {}
+    section = None
+    lines_buf = []
+    for line in out.split("\n"):
+        if line.startswith("===") and line.endswith("==="):
+            if section and lines_buf:
+                result[section] = "\n".join(lines_buf)
+            section = line.strip("= ").lower()
+            lines_buf = []
+        else:
+            lines_buf.append(line)
+    if section and lines_buf:
+        result[section] = "\n".join(lines_buf)
+    return result
+
+
+def relay_cmd(args):
+    """Run vesper-relay locally."""
+    try:
+        r = subprocess.run(
+            [RELAY] + args,
+            capture_output=True, text=True, timeout=10
+        )
+        return r.stdout.strip(), r.returncode
+    except subprocess.TimeoutExpired:
+        return "TIMEOUT", -1
+    except Exception as e:
+        return str(e), -1
+
+
+def get_pi_health():
+    """Get Pi health dict."""
+    out, rc = ssh_cmd("curl -s http://localhost:9091/health")
+    if rc == 0 and out and out != "TIMEOUT":
+        try:
+            return json.loads(out)
+        except json.JSONDecodeError:
+            pass
+    return None
+
+
+def get_pi_temp():
+    out, _ = ssh_cmd("cat /sys/class/thermal/thermal_zone0/temp")
+    try:
+        return int(out) / 1000.0
+    except (ValueError, TypeError):
+        return None
+
+
+def get_pi_disk():
+    out, _ = ssh_cmd("df -h /mnt/ssd | tail -1")
+    return out if out else "n/a"
+
+
+def get_pi_services():
+    out, _ = ssh_cmd("systemctl is-active llama-server vesper-arbitrator vesper-sync")
+    if out:
+        svcs = out.split("\n")
+        names = ["llama-server", "arbitrator", "sync-daemon"]
+        return dict(zip(names, svcs))
+    return {}
+
+
+def get_dev_pull_status():
+    out, _ = ssh_cmd("tail -6 /var/log/vesper-dev-sync.log 2>/dev/null")
+    return out if out else "no logs"
+
+
+def status_screen():
+    banner()
+    print(f"  {B}DARKPRIMROSE{R}  {DIM}100.108.187.24{R}\n")
+
+    # ONE SSH call for everything
+    batch = pi_batch()
+    if not batch:
+        print(f"  {RED}Pi unreachable (timeout){R}")
+        print()
+        return
+
+    # Temperature
+    raw_temp = batch.get("temp", "").strip()
+    try:
+        temp = int(raw_temp) / 1000.0
+        color = GRN if temp < 60 else (YEL if temp < 75 else RED)
+        print(f"  {color}■{R} Temp: {temp:.1f}°C")
+    except (ValueError, TypeError):
+        print(f"  {DIM}Temp: n/a{R}")
+
+    # Disk
+    disk = batch.get("disk", "n/a").strip()
+    # df output has header line, grab the data line
+    disk_lines = [l for l in disk.split("\n") if "/dev/" in l]
+    if disk_lines:
+        disk = disk_lines[0]
+    print(f"  {DIM}Disk: {disk}{R}")
+
+    # Services
+    raw_svcs = batch.get("services", "").strip()
+    if raw_svcs:
+        svcs = raw_svcs.split("\n")
+        names = ["llama-server", "arbitrator", "sync-daemon"]
+        svc_map = dict(zip(names, svcs))
+        print(f"\n  {B}SERVICES{R}")
+        for name, status in svc_map.items():
+            if status == "active":
+                print(f"  {GRN}●{R} {name}")
+            else:
+                print(f"  {RED}○{R} {name} {DIM}({status}){R}")
+
+    # Sync daemon
+    raw_health = batch.get("health", "").strip()
+    if raw_health:
+        try:
+            health = json.loads(raw_health)
+            print(f"\n  {B}SYNC DAEMON{R}")
+            print(f"  Status: {health.get('status', '?')}")
+            print(f"  Files tracked: {health.get('files_tracked', '?')}")
+            print(f"  Last pull: {str(health.get('last_pull', '?'))[:19]}")
+            print(f"  Sync interval: {health.get('sync_interval', '?')}s")
+            errors = health.get('recent_errors', [])
+            if errors:
+                print(f"  {RED}Errors: {len(errors)}{R}")
+        except json.JSONDecodeError:
+            print(f"\n  {RED}Sync health: parse error{R}")
+
+    # Dev pull
+    print(f"\n  {B}DEV PULL (rsync → DarkPhoenix){R}")
+    dev_status = batch.get("devlog", "").strip()
+    if dev_status:
+        lines = dev_status.split("\n")
+        for line in lines[-3:]:
+            if "OK" in line:
+                print(f"  {GRN}{line}{R}")
+            elif "FAIL" in line:
+                print(f"  {RED}{line}{R}")
+            else:
+                print(f"  {DIM}{line}{R}")
+
+    # Dev pull timer
+    timer_out = batch.get("timer", "").strip()
+    if timer_out == "active":
+        print(f"  {GRN}●{R} Timer running (every 30s)")
+    else:
+        print(f"  {RED}○{R} Timer NOT running")
+
+    print()
+
+
+def agent_status():
+    """Show which agents have fresh data in the Pi cache."""
+    banner()
+    print(f"  {B}AGENT SYNC STATUS{R}\n")
+
+    # One SSH call to check all agents at once
+    agent_list = " ".join(ALL_AGENTS)
+    check_cmd = (
+        "for agent in " + agent_list + "; do "
+        "echo \"===AGENT:$agent===\" && "
+        "curl -s \"http://localhost:9091/memory/$agent?file=SOUL.md\" | python3 -c \"import sys,json; d=json.load(sys.stdin); print('HAS_SOUL' if d.get('content','').strip() else 'NO_SOUL')\" 2>/dev/null || echo 'NO_SOUL' && "
+        "curl -s \"http://localhost:9091/memory/$agent?file=MEMORY.md\" | python3 -c \"import sys,json; d=json.load(sys.stdin); print('HAS_MEMORY' if d.get('content','').strip() else 'NO_MEMORY')\" 2>/dev/null || echo 'NO_MEMORY' && "
+        "true; done && echo '===END==='"
+    )
+    out, rc = ssh_cmd(check_cmd, timeout=20)
+
+    # Parse results
+    agent_data = {}
+    if rc == 0 and out and "TIMEOUT" not in out:
+        current_agent = None
+        for line in out.split("\n"):
+            if line.startswith("===AGENT:") and line.endswith("==="):
+                current_agent = line.strip("= ").split(":")[1]
+                agent_data[current_agent] = {"soul": False, "memory": False}
+            elif current_agent and line.strip() == "HAS_SOUL":
+                agent_data[current_agent]["soul"] = True
+            elif current_agent and line.strip() == "HAS_MEMORY":
+                agent_data[current_agent]["memory"] = True
+    else:
+        print(f"  {RED}Pi unreachable{R}\n")
+        return
+
+    for priority, agents in [("P0", P0_AGENTS), ("P1", P1_AGENTS)]:
+        tag_color = RED if priority == "P0" else DIM
+        print(f"  {tag_color}{B}[{priority}]{R}")
+        for agent in agents:
+            data = agent_data.get(agent, {"soul": False, "memory": False})
+            soul_mark = f"{GRN}S{R}" if data["soul"] else f"{RED}·{R}"
+            mem_mark = f"{GRN}M{R}" if data["memory"] else f"{RED}·{R}"
+
+            name = agent.upper()
+            if priority == "P0":
+                print(f"    {soul_mark}{mem_mark} {B}{name}{R}")
+            else:
+                print(f"    {soul_mark}{mem_mark} {DIM}{name}{R}")
+        print()
+
+    print(f"  {DIM}S = SOUL.md synced  M = MEMORY.md synced{R}")
+    print(f"  {DIM}P0 = every 30s  P1 = every 150s{R}\n")
+
+
+def read_agent_menu():
+    """Read an agent's file from Vesper."""
+    banner()
+    print(f"  {B}READ AGENT FILE{R}\n")
+    for i, agent in enumerate(ALL_AGENTS, 1):
+        marker = f"{RED}★{R}" if agent in P0_AGENTS else " "
+        print(f"  {marker} [{i}] {agent}")
+
+    print(f"\n  [b] Back")
+
+    try:
+        choice = input(f"\n  {B}Agent: {R}").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        return
+
+    if choice == "b":
+        return
+
+    # Map choice to agent name
+    agent = None
+    if choice.isdigit() and 1 <= int(choice) <= len(ALL_AGENTS):
+        agent = ALL_AGENTS[int(choice) - 1]
+    elif choice in ALL_AGENTS:
+        agent = choice
+
+    if not agent:
+        print(f"  {RED}Unknown agent{R}")
+        input(f"\n  {DIM}Press enter...{R}")
+        return
+
+    try:
+        filepath = input(f"  File [{B}SOUL.md{R}]: ").strip() or "SOUL.md"
+    except (EOFError, KeyboardInterrupt):
+        return
+
+    out, rc = relay_cmd(["read", agent, filepath])
+    if rc == 0 and out:
+        print(f"\n  {B}─── {agent}/{filepath} ───{R}\n")
+        # Truncate to screen-friendly size
+        lines = out.split("\n")
+        max_lines = 40
+        for line in lines[:max_lines]:
+            print(f"  {line}")
+        if len(lines) > max_lines:
+            print(f"\n  {DIM}... ({len(lines) - max_lines} more lines){R}")
+    else:
+        print(f"  {RED}Could not read {agent}/{filepath}: {out}{R}")
+
+    input(f"\n  {DIM}Press enter...{R}")
+
+
+def write_agent_menu():
+    """Write to an agent's memory via Vesper."""
+    banner()
+    print(f"  {B}WRITE TO AGENT{R}\n")
+    for i, agent in enumerate(ALL_AGENTS, 1):
+        marker = f"{RED}★{R}" if agent in P0_AGENTS else " "
+        print(f"  {marker} [{i}] {agent}")
+
+    print(f"\n  [b] Back")
+
+    try:
+        choice = input(f"\n  {B}Agent: {R}").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        return
+
+    if choice == "b":
+        return
+
+    agent = None
+    if choice.isdigit() and 1 <= int(choice) <= len(ALL_AGENTS):
+        agent = ALL_AGENTS[int(choice) - 1]
+    elif choice in ALL_AGENTS:
+        agent = choice
+
+    if not agent:
+        print(f"  {RED}Unknown agent{R}")
+        input(f"\n  {DIM}Press enter...{R}")
+        return
+
+    try:
+        filepath = input(f"  Path [{B}MEMORY.md{R}]: ").strip() or "MEMORY.md"
+    except (EOFError, KeyboardInterrupt):
+        return
+
+    print(f"\n  {B}Enter content (Ctrl+D when done):{R}\n")
+    try:
+        content = sys.stdin.read()
+    except KeyboardInterrupt:
+        return
+
+    if not content.strip():
+        print(f"  {DIM}Empty. Aborted.{R}")
+        input(f"\n  {DIM}Press enter...{R}")
+        return
+
+    out, rc = relay_cmd(["write", agent, filepath, content])
+    if rc == 0:
+        print(f"\n  {GRN}{B}✓ Written to {agent}/{filepath}{R}")
+        print(f"  {DIM}{out}{R}")
+    else:
+        print(f"\n  {RED}Failed: {out}{R}")
+
+    input(f"\n  {DIM}Press enter...{R}")
+
+
+def force_sync():
+    """Force a full sync cycle."""
+    print(f"\n  {B}Forcing sync...{R}")
+    out, rc = ssh_cmd("curl -s -X POST http://localhost:9091/sync/force")
+    if rc == 0 and out:
+        try:
+            d = json.loads(out)
+            print(f"  {GRN}Sync forced: {d.get('files_tracked', '?')} files tracked{R}")
+        except json.JSONDecodeError:
+            print(f"  {GRN}{out}{R}")
+    else:
+        print(f"  {RED}Failed: {out}{R}")
+
+    # Also force a dev pull
+    print(f"  {DIM}Triggering dev pull...{R}")
+    ssh_cmd("systemctl start vesper-dev-pull")
+    time.sleep(2)
+    dev_status = get_dev_pull_status()
+    for line in dev_status.split("\n")[-3:]:
+        if "OK" in line:
+            print(f"  {GRN}{line}{R}")
+        elif "FAIL" in line:
+            print(f"  {RED}{line}{R}")
+
+    input(f"\n  {DIM}Press enter...{R}")
+
+
+def push_p0():
+    """Push all P0 agent files from DarkPhoenix to GDrive."""
+    banner()
+    print(f"  {B}PUSH P0 AGENTS TO GDRIVE{R}\n")
+    print(f"  Agents: {', '.join(P0_AGENTS)}\n")
+
+    for agent in P0_AGENTS:
+        out, rc = relay_cmd(["push", agent])
+        if rc == 0:
+            print(f"  {GRN}●{R} {agent} pushed")
+            if out:
+                for line in out.split("\n")[:3]:
+                    print(f"    {DIM}{line}{R}")
+        else:
+            print(f"  {RED}○{R} {agent} failed: {out}")
+
+    input(f"\n  {DIM}Press enter...{R}")
+
+
+def pi_shell():
+    """Quick shell to the Pi."""
+    banner()
+    print(f"  {B}ORANGE PI QUICK SHELL{R}")
+    print(f"  {DIM}Type commands, 'exit' to return{R}\n")
+
+    while True:
+        try:
+            cmd = input(f"  {CYN}pi>{R} ").strip()
+        except (EOFError, KeyboardInterrupt):
+            return
+
+        if cmd in ("exit", "quit", "q"):
+            return
+        if not cmd:
+            continue
+
+        out, rc = ssh_cmd(cmd, timeout=15)
+        if out:
+            for line in out.split("\n"):
+                print(f"  {line}")
+        if rc != 0:
+            print(f"  {DIM}(exit code: {rc}){R}")
+
+
+def restart_pi_services():
+    """Restart all Pi services."""
+    banner()
+    print(f"  {B}RESTART PI SERVICES{R}\n")
+
+    services = ["llama-server", "vesper-arbitrator", "vesper-sync", "vesper-dev-pull.timer"]
+    for svc in services:
+        print(f"  Restarting {svc}...", end=" ", flush=True)
+        out, rc = ssh_cmd(f"systemctl restart {svc} 2>&1 && echo OK || echo FAIL")
+        if "OK" in out:
+            print(f"{GRN}OK{R}")
+        else:
+            print(f"{RED}FAIL{R}")
+
+    time.sleep(3)
+
+    # Verify
+    svcs = get_pi_services()
+    print(f"\n  {B}STATUS{R}")
+    for name, status in svcs.items():
+        if status == "active":
+            print(f"  {GRN}●{R} {name}")
+        else:
+            print(f"  {RED}○{R} {name} ({status})")
+
+    input(f"\n  {DIM}Press enter...{R}")
+
+
+def main():
+    signal.signal(signal.SIGINT, lambda *_: sys.exit(0))
+
+    # CLI shortcuts
+    if len(sys.argv) > 1:
+        cmd = sys.argv[1].lower()
+        if cmd == "status":
+            status_screen()
+            return
+        elif cmd == "push":
+            push_p0()
+            return
+        elif cmd == "sync":
+            force_sync()
+            return
+        elif cmd == "shell":
+            pi_shell()
+            return
+
+    while True:
+        banner()
+        # Quick status line
+        temp = get_pi_temp()
+        temp_str = f"{temp:.0f}°C" if temp else "?"
+        temp_color = GRN if temp and temp < 60 else (YEL if temp and temp < 75 else RED)
+        print(f"  {temp_color}■{R} Pi: {temp_str}  {DIM}|{R}  ssh root@darkprimrose")
+        hr()
+
+        print(f"  {B}STATUS{R}")
+        print(f"  [w] Full status dashboard")
+        print(f"  [a] Agent sync status")
+        print()
+
+        print(f"  {B}MEMORY{R}")
+        print(f"  [r] Read agent file")
+        print(f"  [w] Write to agent")
+        print()
+
+        print(f"  {B}SYNC{R}")
+        print(f"  [s] Force sync now")
+        print(f"  [p] Push P0 agents to GDrive")
+        print()
+
+        print(f"  {B}ADMIN{R}")
+        print(f"  [x] Restart all Pi services")
+        print(f"  [!] Pi quick shell")
+        print(f"  [q] Quit")
+        print()
+
+        try:
+            choice = input(f"  {B}> {R}").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print(f"\n  {DIM}Bye.{R}")
+            break
+
+        if choice == "w":
+            status_screen()
+            input(f"\n  {DIM}Press enter...{R}")
+        elif choice == "a":
+            agent_status()
+            input(f"\n  {DIM}Press enter...{R}")
+        elif choice == "r":
+            read_agent_menu()
+        elif choice in ("write", "w2"):
+            write_agent_menu()
+        elif choice == "s":
+            force_sync()
+        elif choice == "p":
+            push_p0()
+        elif choice == "x":
+            restart_pi_services()
+        elif choice in ("!", "shell"):
+            pi_shell()
+        elif choice == "q":
+            print(f"\n  {DIM}Stay synced.{R}")
+            break
+
+
+if __name__ == "__main__":
+    main()

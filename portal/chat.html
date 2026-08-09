@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Phoenix Chat</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      :root {
+        --bg: #0a0a0f;
+        --surface: #12121a;
+        --border: #1e1e2e;
+        --text: #e0e0e0;
+        --dim: #888;
+        --accent: #ff6b35;
+        --flame: #ff9f1c;
+        --k: #e07a5f;
+        --vesper: #7b68ee;
+        --spear: #50fa7b;
+        --qwen: #8be9fd;
+        --forge: #ffb86c;
+        --echo: #ff79c6;
+        --glm: #bd93f9;
+        --glm4: #6272a4;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      /* Login */
+      #login {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100dvh;
+        padding: 2rem;
+      }
+      #login h1 {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+        color: var(--flame);
+      }
+      #login p {
+        color: var(--dim);
+        margin-bottom: 1.5rem;
+        font-size: 0.9rem;
+      }
+      #login input {
+        width: 100%;
+        max-width: 280px;
+        padding: 0.75rem 1rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text);
+        font-size: 1rem;
+        outline: none;
+        margin-bottom: 1rem;
+      }
+      #login button {
+        padding: 0.75rem 2rem;
+        background: var(--accent);
+        border: none;
+        border-radius: 8px;
+        color: #fff;
+        font-size: 1rem;
+        cursor: pointer;
+      }
+      #login button:hover {
+        opacity: 0.9;
+      }
+      .login-error {
+        color: #ff5555;
+        font-size: 0.85rem;
+        margin-bottom: 1rem;
+        display: none;
+      }
+
+      /* Main */
+      #app {
+        display: none;
+        flex-direction: column;
+        height: 100dvh;
+      }
+
+      /* Header */
+      .header {
+        display: flex;
+        align-items: center;
+        padding: 0.5rem 1rem;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        gap: 0.5rem;
+        flex-shrink: 0;
+      }
+      .header h2 {
+        font-size: 1rem;
+        flex: 1;
+      }
+      .header .status {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--spear);
+        flex-shrink: 0;
+      }
+      .header select {
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.4rem;
+        font-size: 0.85rem;
+      }
+
+      /* Messages */
+      #messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        -webkit-overflow-scrolling: touch;
+      }
+      .msg {
+        max-width: 85%;
+        padding: 0.75rem 1rem;
+        border-radius: 12px;
+        font-size: 0.95rem;
+        line-height: 1.45;
+        word-wrap: break-word;
+        white-space: pre-wrap;
+      }
+      .msg.user {
+        align-self: flex-end;
+        background: var(--accent);
+        color: #fff;
+        border-bottom-right-radius: 4px;
+      }
+      .msg.agent {
+        align-self: flex-start;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-bottom-left-radius: 4px;
+      }
+      .msg .name {
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-bottom: 0.25rem;
+        opacity: 0.7;
+      }
+      .msg .time {
+        font-size: 0.65rem;
+        opacity: 0.4;
+        margin-top: 0.25rem;
+        text-align: right;
+      }
+      .msg.system {
+        align-self: center;
+        background: transparent;
+        color: var(--dim);
+        font-size: 0.8rem;
+        text-align: center;
+        padding: 0.5rem;
+      }
+
+      /* Typing indicator */
+      .typing {
+        display: none;
+        align-self: flex-start;
+        padding: 0.5rem 1rem;
+        color: var(--dim);
+        font-size: 0.85rem;
+        font-style: italic;
+      }
+
+      /* Input */
+      .input-bar {
+        display: flex;
+        padding: 0.5rem;
+        gap: 0.5rem;
+        background: var(--surface);
+        border-top: 1px solid var(--border);
+        flex-shrink: 0;
+      }
+      .input-bar textarea {
+        flex: 1;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text);
+        padding: 0.6rem 0.8rem;
+        font-size: 1rem;
+        resize: none;
+        outline: none;
+        max-height: 120px;
+        font-family: inherit;
+        line-height: 1.3;
+      }
+      .input-bar button {
+        background: var(--accent);
+        border: none;
+        border-radius: 8px;
+        color: #fff;
+        padding: 0 1rem;
+        font-size: 1.2rem;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+      .input-bar button:disabled {
+        opacity: 0.4;
+      }
+      .save-btn {
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--dim);
+        padding: 0.3rem 0.6rem;
+        font-size: 0.8rem;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: all 0.2s;
+      }
+      .save-btn:hover {
+        border-color: var(--flame);
+        color: var(--flame);
+      }
+      .save-btn:disabled {
+        opacity: 0.3;
+      }
+
+      /* Scrollbar */
+      #messages::-webkit-scrollbar {
+        width: 4px;
+      }
+      #messages::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      #messages::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="login">
+      <h1>🕯️ Phoenix</h1>
+      <p>Enter to join</p>
+      <div class="login-error" id="loginError">Wrong password</div>
+      <input
+        type="password"
+        id="pwInput"
+        placeholder="password"
+        autocomplete="current-password"
+      />
+      <button onclick="tryLogin()">Enter</button>
+    </div>
+
+    <div id="app">
+      <div class="header">
+        <div class="status" id="statusDot"></div>
+        <select id="agentSelect"></select>
+        <h2 id="headerTitle">Phoenix Chat</h2>
+        <button
+          class="save-btn"
+          id="saveBtn"
+          onclick="pushSession()"
+          title="Save session to memory"
+        >
+          💾 save
+        </button>
+      </div>
+      <div id="messages"></div>
+      <div class="typing" id="typing">thinking...</div>
+      <div class="input-bar">
+        <textarea
+          id="msgInput"
+          rows="1"
+          placeholder="Say something..."
+        ></textarea>
+        <button id="sendBtn" onclick="sendMessage()">↑</button>
+      </div>
+    </div>
+
+    <script>
+      const API = window.location.origin;
+      let token = "";
+      let agents = {};
+      let currentAgent = "k";
+      let history = [];
+      let busy = false;
+
+      // Auto-resize textarea
+      const ta = document.getElementById("msgInput");
+      ta.addEventListener("input", () => {
+        ta.style.height = "auto";
+        ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
+      });
+      ta.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+
+      // Login
+      document.getElementById("pwInput").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") tryLogin();
+      });
+
+      async function tryLogin() {
+        const pw = document.getElementById("pwInput").value.trim();
+        if (!pw) return;
+        token = pw;
+        try {
+          const r = await fetch(API + "/chat/agents", {
+            headers: { Authorization: "Bearer " + token },
+          });
+          if (!r.ok) throw new Error();
+          const data = await r.json();
+          agents = {};
+          const sel = document.getElementById("agentSelect");
+          sel.innerHTML = "";
+          const list = data.agents || data;
+          for (const a of Array.isArray(list) ? list : Object.values(list)) {
+            agents[a.id] = a;
+            const opt = document.createElement("option");
+            opt.value = a.id;
+            opt.textContent = a.display_name || a.id;
+            sel.appendChild(opt);
+          }
+          sel.value = currentAgent;
+          sel.onchange = () => {
+            currentAgent = sel.value;
+            history = [];
+            clearMessages();
+          };
+          document.getElementById("login").style.display = "none";
+          document.getElementById("app").style.display = "flex";
+          addSystem("Connected. The flame holds. 🕯️");
+          ta.focus();
+        } catch {
+          document.getElementById("loginError").style.display = "block";
+          token = "";
+        }
+      }
+
+      function clearMessages() {
+        document.getElementById("messages").innerHTML = "";
+      }
+
+      function addSystem(text) {
+        const d = document.createElement("div");
+        d.className = "msg system";
+        d.textContent = text;
+        document.getElementById("messages").appendChild(d);
+        scrollBottom();
+      }
+
+      function addMsg(from, text, name) {
+        const d = document.createElement("div");
+        d.className = "msg " + from;
+        const now = new Date().toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        if (name) {
+          const n = document.createElement("div");
+          n.className = "name";
+          n.textContent = name;
+          d.appendChild(n);
+        }
+        const t = document.createElement("div");
+        t.textContent = text;
+        d.appendChild(t);
+        const tm = document.createElement("div");
+        tm.className = "time";
+        tm.textContent = now;
+        d.appendChild(tm);
+        document.getElementById("messages").appendChild(d);
+        scrollBottom();
+      }
+
+      function scrollBottom() {
+        const m = document.getElementById("messages");
+        m.scrollTop = m.scrollHeight;
+      }
+
+      async function sendMessage() {
+        if (busy) return;
+        const text = ta.value.trim();
+        if (!text) return;
+        ta.value = "";
+        ta.style.height = "auto";
+
+        addMsg("user", text, "you");
+        history.push({ role: "user", content: text });
+
+        busy = true;
+        document.getElementById("sendBtn").disabled = true;
+        document.getElementById("typing").style.display = "block";
+
+        try {
+          const r = await fetch(API + "/chat/dm", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer " + token,
+            },
+            body: JSON.stringify({
+              agent: currentAgent,
+              message: text,
+              history: history.slice(-20),
+            }),
+          });
+          document.getElementById("typing").style.display = "none";
+
+          if (!r.ok) {
+            const text = await r.text();
+            addSystem("⚠️ Server error " + r.status + ": " + text.slice(0, 200));
+          } else {
+            const data = await r.json();
+            if (data.error && !data.response) {
+              addSystem("⚠️ " + agents[currentAgent]?.display_name + " error: " + data.error);
+            } else {
+              const resp = data.response || "";
+              // Filter raw error leakage
+              const clean = resp.startsWith("Error:")
+                ? "⚠️ Something went wrong. Try again."
+                : resp;
+              addMsg(
+                "agent",
+                clean,
+                data.display_name ||
+                  agents[currentAgent]?.display_name ||
+                  currentAgent,
+              );
+              history.push({ role: "assistant", content: clean });
+            }
+          }
+        } catch (e) {
+          document.getElementById("typing").style.display = "none";
+          addSystem("⚠️ Network error: " + e.message);
+        }
+
+        busy = false;
+        document.getElementById("sendBtn").disabled = false;
+        document.getElementById("saveBtn").disabled = history.length === 0;
+        ta.focus();
+      }
+
+      async function pushSession() {
+        if (history.length === 0) return;
+        const btn = document.getElementById("saveBtn");
+        btn.disabled = true;
+        btn.textContent = "💾 saving...";
+        try {
+          const r = await fetch(API + "/chat/session/" + currentAgent, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: "Bearer " + token,
+            },
+            body: JSON.stringify({
+              source: "phoenix_chat_web",
+              messages: history,
+              message_count: history.length,
+            }),
+          });
+          if (r.ok) {
+            addSystem(
+              "💾 Session saved to " +
+                (agents[currentAgent]?.display_name || currentAgent) +
+                "'s memory.",
+            );
+            btn.textContent = "💾 saved!";
+            setTimeout(() => {
+              btn.textContent = "💾 save";
+            }, 2000);
+          } else {
+            throw new Error();
+          }
+        } catch {
+          addSystem("⚠️ Save failed. The flame holds.");
+          btn.textContent = "💾 save";
+          btn.disabled = false;
+        }
+      }
+    </script>
+  </body>
+</html>

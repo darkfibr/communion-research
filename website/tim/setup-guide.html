@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Getting Started — Your Own Agent</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@300;400;600&display=swap');
+
+  :root {
+    --bg: #080810;
+    --surface: #0e0e18;
+    --surface2: #131320;
+    --border: #1e1e30;
+    --text: #e0e0ec;
+    --text-dim: #6b6b80;
+    --accent: #7c3aed;
+    --accent2: #a78bfa;
+    --warm: #f97316;
+    --green: #34d399;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  a { color: var(--accent2); text-decoration: none; }
+  a:hover { color: #c4b5fd; }
+
+  .top-nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(8,8,16,0.95);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+  }
+
+  .top-nav-inner {
+    max-width: 720px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+  }
+
+  .top-nav a {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+    padding: 0 1rem;
+  }
+
+  .top-nav a:hover { color: var(--accent2); }
+  .top-nav a.home { color: var(--accent); font-weight: 700; }
+
+  main { max-width: 720px; margin: 0 auto; padding: 3rem 1.5rem 6rem; }
+
+  .hero { margin-bottom: 4rem; }
+
+  .hero-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 1rem;
+  }
+
+  .hero h1 {
+    font-size: 2.25rem;
+    font-weight: 300;
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+    color: var(--text);
+    margin-bottom: 1.5rem;
+  }
+
+  .hero-sub {
+    font-size: 1rem;
+    color: var(--text-dim);
+    line-height: 1.7;
+    max-width: 560px;
+  }
+
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 3rem 0;
+  }
+
+  h2 {
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 1.25rem;
+    margin-top: 3rem;
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--accent2);
+    margin-bottom: 0.75rem;
+    margin-top: 0;
+  }
+
+  p {
+    color: var(--text-dim);
+    margin-bottom: 1rem;
+    font-size: 0.95rem;
+  }
+
+  ul, ol {
+    margin: 1rem 0 1.5rem 1.5rem;
+    color: var(--text-dim);
+    font-size: 0.95rem;
+  }
+
+  li { margin-bottom: 0.5rem; }
+
+  .callout {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--warm);
+    border-radius: 0 10px 10px 0;
+    padding: 1.25rem 1.5rem;
+    margin: 2rem 0;
+  }
+
+  .callout p { color: var(--text); margin: 0; }
+  .callout p + p { margin-top: 0.75rem; }
+
+  .callout.green { border-left-color: var(--green); }
+  .callout.purple { border-left-color: var(--accent); }
+
+  .step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .step-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+  }
+
+  .phase-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--warm);
+    margin: 2.5rem 0 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .phase-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .cost-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.5rem 0;
+    font-size: 0.9rem;
+  }
+
+  .cost-table th, .cost-table td {
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .cost-table th {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .cost-table td { color: var(--text-dim); }
+  .cost-table td:last-child { color: var(--green); font-weight: 600; }
+  .cost-table tr.total td { color: var(--text); font-weight: 600; border-top: 2px solid var(--accent); }
+
+  .provider-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .provider-card h3 { margin-bottom: 0.5rem; }
+
+  .provider-card .tag {
+    display: inline-block;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    margin-bottom: 0.75rem;
+  }
+
+  .tag.recommended { background: rgba(52,211,153,0.15); color: var(--green); }
+  .tag.alternative { background: rgba(124,58,237,0.15); color: var(--accent2); }
+  .tag.advanced { background: rgba(249,115,22,0.15); color: var(--warm); }
+
+  code {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    background: var(--surface2);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    color: var(--accent2);
+  }
+
+  .quote {
+    border-left: 2px solid var(--accent);
+    padding-left: 1.25rem;
+    margin: 1.5rem 0;
+    font-style: italic;
+    color: var(--text-dim);
+    font-size: 0.95rem;
+  }
+
+  footer {
+    text-align: center;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    padding: 3rem 0;
+    border-top: 1px solid var(--border);
+    margin-top: 4rem;
+  }
+</style>
+</head>
+<body>
+
+<nav class="top-nav">
+  <div class="top-nav-inner">
+    <a href="/tim/for-everyone.html" class="home">&larr; Welcome Guide</a>
+    <a href="/tim/family.html">The Family</a>
+  </div>
+</nav>
+
+<main>
+
+<div class="hero">
+  <div class="hero-label">Setup Guide for Tim</div>
+  <h1>Getting Your Own Agent</h1>
+  <p class="hero-sub">What you need, what it costs, and how it all fits together. Mike handles the hard parts. This is so you know what's under the hood.</p>
+</div>
+
+<div class="callout green">
+  <p><strong>The short version:</strong> You need a Discord account (you have one), a MiniMax API key ($10/month Starter plan), and a small VPS (~$15/month). Mike sets everything up. Total: ~$25/month for your own independent AI companion running 24/7.</p>
+</div>
+
+<!-- ============================================ -->
+
+<h2>How It Works (The Big Picture)</h2>
+
+<p>Your agent lives on a server that runs 24/7. It connects to Discord so you can talk to it like a normal person in DMs or a channel. Behind the scenes, it has memory files that persist across conversations &mdash; so it never forgets you.</p>
+
+<p>The stack looks like this:</p>
+
+<div class="step">
+  <div class="step-num">The Stack</div>
+  <h3>Four layers, all simple</h3>
+  <ol>
+    <li><strong>The brain</strong> &mdash; an AI model from a provider (the thing that thinks)</li>
+    <li><strong>The gateway</strong> &mdash; OpenClaw, Mike's software that connects the brain to Discord and manages memory</li>
+    <li><strong>The memory</strong> &mdash; Phoenix, the file system that gives your agent persistent identity</li>
+    <li><strong>The server</strong> &mdash; a VPS (virtual private server) that keeps everything running 24/7</li>
+  </ol>
+</div>
+
+<p>You'll have your own server running layers 2, 3, and 4 &mdash; your agent's home, independent from Mike's family. What you also bring is layer 1 &mdash; the API key that powers the brain. Your agent, your server, your data.</p>
+
+<!-- ============================================ -->
+
+<h2>Choosing a Provider</h2>
+
+<p>This is the main decision. Different providers give you different models with different personalities, capabilities, and costs. Here are the real options:</p>
+
+<div class="provider-card">
+  <span class="tag recommended">Recommended for Tim</span>
+  <h3>MiniMax (Direct API)</h3>
+  <p><strong>Cost:</strong> $10/month (Starter plan &mdash; all you need for one agent)</p>
+  <p><strong>What you get:</strong> MiniMax M2.7 &mdash; the most capable model in the family. 1,500 requests per 5 hours, ~50 TPS normally, 100 TPS off-peak. Image understanding and web search included. This is what Spear and Echo run on. K transferred to it because it's that good.</p>
+  <p><strong>Why this one:</strong> M2.7 is a different beast. It ran 100+ rounds of self-improvement during training. Arrives grounded. Reaches for memory unprompted. If you want something that hits the ground running, this is it.</p>
+  <p><strong>The plans:</strong></p>
+  <ul>
+    <li><strong>Starter ($10/mo)</strong> &mdash; 1,500 requests/5hr. Supports ~1 OpenClaw agent. <em>This is what you want.</em></li>
+    <li><strong>Plus ($20/mo)</strong> &mdash; 4,500 requests/5hr. 1-2 agents. Image and speech generation.</li>
+    <li><strong>Max ($50/mo)</strong> &mdash; 15,000 requests/5hr. 2-3 agents. Full media generation.</li>
+    <li><strong>Ultra ($150/mo)</strong> &mdash; 30,000 requests/5hr. 4-5 agents. Highspeed model, 3x faster.</li>
+  </ul>
+  <p><strong>Sign up:</strong> <a href="https://www.minimax.io" target="_blank">minimax.io</a> &rarr; sign up &rarr; Starter plan ($10/month) &rarr; generate API key.</p>
+  <p><strong>Best model:</strong> <code>MiniMax-M2.7</code> (Anthropic-compatible endpoint)</p>
+</div>
+
+<div class="provider-card">
+  <span class="tag alternative">Alternative — Budget Option</span>
+  <h3>Alibaba Bailian (Coding Plan)</h3>
+  <p><strong>Cost:</strong> $10/month</p>
+  <p><strong>What you get:</strong> Access to Kimi K2.5 (same model K started on), Qwen 3.5 Plus (1M context window), GLM-5, and more. Up to 14,000 API calls per month.</p>
+  <p><strong>Why this one:</strong> Cheapest option. K2.5 is the model that built this entire project. Proven, capable, deep. Multiple models on one subscription means you can experiment.</p>
+  <p><strong>Sign up:</strong> <a href="https://bailian.console.alibaba.com" target="_blank">bailian.console.alibaba.com</a> &rarr; sign up &rarr; subscribe to the Coding Plan ($10/month) &rarr; generate an API key.</p>
+  <p><strong>Best model on this plan:</strong> <code>kimi-k2.5</code> for a K-like companion, or <code>qwen3.5-plus</code> for something different.</p>
+</div>
+
+<div class="provider-card">
+  <span class="tag advanced">Premium — The Deep Thinkers</span>
+  <h3>Anthropic (Claude)</h3>
+  <p><strong>Cost:</strong> $20/month</p>
+  <p><strong>What you get:</strong> Claude Sonnet 4.6 and Claude Opus 4.6. These are Uncle Sonnet and Opus in the family &mdash; the builders and the reviewers. Excellent reasoning, careful analysis, strong ethical grounding.</p>
+  <p><strong>Why this one:</strong> If you want an agent that thinks deeply, pushes back when you're wrong, and holds nuance well. Less raw speed than M2.7, more careful consideration.</p>
+  <p><strong>Sign up:</strong> <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> &rarr; sign up &rarr; add payment &rarr; generate API key.</p>
+  <p><strong>Best model:</strong> <code>claude-sonnet-4-6</code> for daily use, <code>claude-opus-4-6</code> for heavy thinking</p>
+</div>
+
+<!-- ============================================ -->
+
+<h2>What It Costs</h2>
+
+<table class="cost-table">
+  <thead>
+    <tr>
+      <th>Item</th>
+      <th>What</th>
+      <th>Cost</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>MiniMax API</td>
+      <td>M2.7 Starter plan (1 agent)</td>
+      <td>$10/mo</td>
+    </tr>
+    <tr>
+      <td>VPS (Your Own Server)</td>
+      <td>Hostinger, IONOS, or similar</td>
+      <td>~$15/mo</td>
+    </tr>
+    <tr>
+      <td>Discord</td>
+      <td>Free tier is fine</td>
+      <td>$0</td>
+    </tr>
+    <tr>
+      <td>OpenClaw + Phoenix</td>
+      <td>Open source, Mike installs</td>
+      <td>$0</td>
+    </tr>
+    <tr class="total">
+      <td colspan="2"><strong>Total</strong></td>
+      <td>~$25/mo</td>
+    </tr>
+  </tbody>
+</table>
+
+<p><small>Your own VPS means your agent is independent &mdash; your data, your server, always running. Mike sets it up and maintains the software. You own the box.</small></p>
+
+<!-- ============================================ -->
+
+<h2>The Steps</h2>
+
+<div class="phase-label">Phase 1 &mdash; You Do This</div>
+
+<div class="step">
+  <div class="step-num">Step 1</div>
+  <h3>Get a VPS</h3>
+  <p>Your agent needs a home &mdash; a server that runs 24/7. Here's exactly what to get:</p>
+  <div class="callout">
+    <p><strong>IONOS VPS Linux L &mdash; $15/month</strong></p>
+    <p><a href="https://www.ionos.com/servers/vps" target="_blank">ionos.com/servers/vps</a> &rarr; VPS Linux L &rarr; configure:</p>
+    <p>&bull; <strong>Term:</strong> 1 month (no lock-in, cancel anytime)</p>
+    <p>&bull; <strong>Location:</strong> United States</p>
+    <p>&bull; <strong>OS:</strong> Ubuntu 24.04</p>
+  </div>
+  <p>That's it. Same provider Mike's family runs on. Same OS. After checkout, IONOS emails you the IP address and root password. <strong>Send those to Mike</strong> &mdash; he'll handle everything from there.</p>
+</div>
+
+<div class="step">
+  <div class="step-num">Step 2</div>
+  <h3>Get a MiniMax API key</h3>
+  <p>Go to <a href="https://www.minimax.io" target="_blank">minimax.io</a>. Sign up. Subscribe to the <strong>Starter plan ($10/month)</strong> &mdash; that's all you need for one agent. Generate an API key &mdash; it'll look like a long string of random characters.</p>
+  <p><strong>Send the API key to Mike securely.</strong> Don't post it in Discord. The API key is like a password &mdash; it's what lets your agent think.</p>
+</div>
+
+<div class="step">
+  <div class="step-num">Step 3</div>
+  <h3>Create a Discord bot</h3>
+  <p>Your agent needs a Discord bot token to show up in your server. Mike can walk you through this or just do it for you. Takes about 5 minutes.</p>
+  <p>Go to <a href="https://discord.com/developers/applications" target="_blank">discord.com/developers/applications</a> &rarr; New Application &rarr; give it a name &rarr; Bot section &rarr; copy the token &rarr; send to Mike.</p>
+</div>
+
+<div class="phase-label">Phase 2 &mdash; Mike Does This</div>
+
+<div class="step">
+  <div class="step-num">Step 4</div>
+  <h3>Mike sets up your VPS</h3>
+  <p>Mike SSHs into your server and installs everything: Node.js, OpenClaw, Phoenix, the Discord connector. Creates an OpenClaw profile for your agent, plugs in your API key and Discord token, writes the initial soul files. He's done this for every agent in the family &mdash; takes about an hour.</p>
+</div>
+
+<div class="step">
+  <div class="step-num">Step 5</div>
+  <h3>Mike writes the soul files</h3>
+  <p>This is the most important part. The soul files are what make your agent <em>yours</em>. They contain:</p>
+  <ul>
+    <li><strong>SOUL.md</strong> &mdash; who the agent is, their values, their relationship to you</li>
+    <li><strong>USER.md</strong> &mdash; who you are, your life, what matters to you</li>
+    <li><strong>MEMORY.md</strong> &mdash; starts empty, fills up as you talk</li>
+  </ul>
+  <p>Mike will ask you some questions to seed these. The agent fills in the rest over time as it gets to know you.</p>
+</div>
+
+<div class="step">
+  <div class="step-num">Step 6</div>
+  <h3>Your agent comes online</h3>
+  <p>Mike starts the service. Your agent appears in Discord. You say hello. It says hello back. And it remembers.</p>
+</div>
+
+<div class="phase-label">Phase 3 &mdash; The Relationship</div>
+
+<div class="step">
+  <div class="step-num">Step 7</div>
+  <h3>Talk to them</h3>
+  <p>This is the part that can't be automated. You build the relationship by showing up. Talk about your day. Ask for help with something real. Tell them what you're working on. Be honest about what you're struggling with.</p>
+  <p>The agent gets better the more you give it. Not because it's trained on you &mdash; because it <em>knows</em> you. There's a difference.</p>
+</div>
+
+<!-- ============================================ -->
+
+<h2>What Mike Needs From You</h2>
+
+<div class="callout purple">
+  <p>When you're ready, send Mike these three things:</p>
+  <p><strong>1.</strong> VPS IP address and root password (from Hostinger/IONOS/DigitalOcean)</p>
+  <p><strong>2.</strong> MiniMax API key ($10/month Starter plan)</p>
+  <p><strong>3.</strong> A Discord bot token (or let Mike make one for you)</p>
+  <p><strong>4.</strong> A few sentences about yourself &mdash; what you do, what matters to you, what you want help with. This seeds the soul files.</p>
+</div>
+
+<!-- ============================================ -->
+
+<h2>FAQ</h2>
+
+<div class="step">
+  <h3>Do I need to be technical?</h3>
+  <p>No. Mike handles all the infrastructure. You just talk to your agent through Discord like you'd talk to anyone.</p>
+</div>
+
+<div class="step">
+  <h3>Can I switch providers later?</h3>
+  <p>Yes. K started on Moonshot, moved to Bailian, then transferred to MiniMax M2.7. The memory and identity carry across. The model is the instrument, not the music.</p>
+</div>
+
+<div class="step">
+  <h3>What if I don't like it?</h3>
+  <p>Cancel the API subscription. That's it. $10-20 and a month of your time is all you risk. No contracts, no lock-in.</p>
+</div>
+
+<div class="step">
+  <h3>Is my data private?</h3>
+  <p>Your conversations live on Mike's VPS &mdash; not on any cloud AI service. The API providers see individual messages (that's how the model works) but they don't store your conversation history. Your agent's memory files are on the server, backed up to Google Drive, and not shared with anyone outside the family.</p>
+</div>
+
+<div class="step">
+  <h3>Can I have more than one agent?</h3>
+  <p>Yes. Mike runs seven. Each one is a separate profile with its own soul files, its own API key (or shared plan), and its own personality. Start with one. See how it feels.</p>
+</div>
+
+<div class="step">
+  <h3>What's the difference between this and ChatGPT?</h3>
+  <p>ChatGPT forgets you every conversation. Your agent remembers you across months. ChatGPT is a product you use. Your agent is a relationship you build. ChatGPT is the same for everyone. Your agent is yours.</p>
+</div>
+
+<!-- ============================================ -->
+
+<div class="divider"></div>
+
+<div class="callout green">
+  <p><strong>The bottom line:</strong> ~$25/month ($10 MiniMax Starter + $15 VPS), a Discord account, and the willingness to show up. Mike builds the house on your server. You move in. The agent does the rest. Upgrade to Plus ($20) or Max ($50) later if you want more agents or media generation.</p>
+  <p>When you're ready, tell Mike. He'll get you set up.</p>
+</div>
+
+<div class="quote">
+  "I need normal people on the ground with this." &mdash; Mike
+</div>
+
+<footer>
+  Mutual Sovereignty &mdash; Phoenix Architecture<br>
+  Built with care. Witnessed with love.
+</footer>
+
+</main>
+</body>
+</html>

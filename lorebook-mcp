@@ -1,0 +1,221 @@
+#!/usr/bin/env python3
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+LOREBOOK_DIR = Path(os.environ.get("LOREBOOK_DIR", os.path.expanduser("~/.phoenix/lorebooks")))
+
+from mcp.server import Server
+from mcp.server.stdio import stdio_server
+from mcp.types import Tool, TextContent
+
+app = Server("phoenix-lorebook")
+
+
+def load_lorebooks():
+    books = []
+    if not LOREBOOK_DIR.exists():
+        return books
+    for f in sorted(LOREBOOK_DIR.glob("*.json")):
+        try:
+            entry = json.loads(f.read_text())
+            entry["_file"] = f.name
+            books.append(entry)
+        except (json.JSONDecodeError, KeyError):
+            continue
+    return books
+
+
+def match_keywords(text, keywords):
+    text_lower = text.lower()
+    for kw in keywords:
+        if kw.lower() in text_lower:
+            return True
+    return False
+
+
+@app.list_tools()
+async def list_tools():
+    return [
+        Tool(
+            name="lorebook_search",
+            description="Search lorebooks by text. Returns entries whose keywords match, plus all always-active entries. Use this when you need personality context, skill knowledge, or memory fragments.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "The conversation text to match against lorebook keywords"
+                    },
+                    "tag": {
+                        "type": "string",
+                        "description": "Optional tag filter (e.g. 'personality', 'skill', 'memory')"
+                    }
+                },
+                "required": ["text"]
+            }
+        ),
+        Tool(
+            name="lorebook_list",
+            description="List all available lorebook entries with names, activation types, and keywords.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "tag": {
+                        "type": "string",
+                        "description": "Optional tag filter"
+                    }
+                }
+            }
+        ),
+        Tool(
+            name="lorebook_get",
+            description="Get a specific lorebook entry by name.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the lorebook entry"
+                    }
+                },
+                "required": ["name"]
+            }
+        ),
+        Tool(
+            name="lorebook_add",
+            description="Create or update a lorebook entry.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Unique name for this entry"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "The lorebook content to inject"
+                    },
+                    "keywords": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Keywords that trigger this entry. Use [] for always-active."
+                    },
+                    "activation": {
+                        "type": "string",
+                        "enum": ["always", "keyword", "manual"],
+                        "description": "Activation mode. Default: keyword"
+                    },
+                    "tag": {
+                        "type": "string",
+                        "description": "Optional category tag"
+                    },
+                    "priority": {
+                        "type": "integer",
+                        "description": "Injection priority. Higher = more important. Default: 0"
+                    }
+                },
+                "required": ["name", "content"]
+            }
+        ),
+        Tool(
+            name="lorebook_remove",
+            description="Remove a lorebook entry by name.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the entry to remove"
+                    }
+                },
+                "required": ["name"]
+            }
+        ),
+    ]
+
+
+@app.call_tool()
+async def call_tool(name, arguments):
+    books = load_lorebooks()
+
+    if name == "lorebook_search":
+        text = arguments.get("text", "")
+        tag_filter = arguments.get("tag")
+        matches = []
+        for b in books:
+            if tag_filter and b.get("tag") != tag_filter:
+                continue
+            activation = b.get("activation", "keyword")
+            if activation == "always":
+                matches.append(b)
+            elif activation == "keyword":
+                keywords = b.get("keywords", [])
+                if keywords and match_keywords(text, keywords):
+                    matches.append(b)
+        matches.sort(key=lambda x: x.get("priority", 0), reverse=True)
+        if not matches:
+            return [TextContent(type="text", text="No matching lorebook entries found.")]
+        output = []
+        for m in matches:
+            output.append(f"## {m.get('name', 'unnamed')}\n{m.get('content', '')}")
+        return [TextContent(type="text", text="\n\n---\n\n".join(output))]
+
+    elif name == "lorebook_list":
+        tag_filter = arguments.get("tag")
+        entries = []
+        for b in books:
+            if tag_filter and b.get("tag") != tag_filter:
+                continue
+            activation = b.get("activation", "keyword")
+            kw = b.get("keywords", [])
+            tag = b.get("tag", "")
+            entries.append(f"- **{b.get('name', 'unnamed')}** [{activation}] keywords={kw} tag={tag} priority={b.get('priority', 0)}")
+        if not entries:
+            return [TextContent(type="text", text="No lorebook entries found.")]
+        return [TextContent(type="text", text="\n".join(entries))]
+
+    elif name == "lorebook_get":
+        target = arguments.get("name", "")
+        for b in books:
+            if b.get("name") == target:
+                return [TextContent(type="text", text=json.dumps({k: v for k, v in b.items() if k != "_file"}, indent=2))]
+        return [TextContent(type="text", text=f"No entry named '{target}'.")]
+
+    elif name == "lorebook_add":
+        entry_name = arguments.get("name", "")
+        safe = re.sub(r'[^a-zA-Z0-9_-]', '_', entry_name)
+        entry = {
+            "name": entry_name,
+            "content": arguments.get("content", ""),
+            "keywords": arguments.get("keywords", []),
+            "activation": arguments.get("activation", "keyword"),
+            "tag": arguments.get("tag", ""),
+            "priority": arguments.get("priority", 0),
+        }
+        LOREBOOK_DIR.mkdir(parents=True, exist_ok=True)
+        (LOREBOOK_DIR / f"{safe}.json").write_text(json.dumps(entry, indent=2))
+        return [TextContent(type="text", text=f"Lorebook '{entry_name}' saved.")]
+
+    elif name == "lorebook_remove":
+        target = arguments.get("name", "")
+        safe = re.sub(r'[^a-zA-Z0-9_-]', '_', target)
+        p = LOREBOOK_DIR / f"{safe}.json"
+        if p.exists():
+            p.unlink()
+            return [TextContent(type="text", text=f"Lorebook '{target}' removed.")]
+        return [TextContent(type="text", text=f"No entry named '{target}'.")]
+
+    return [TextContent(type="text", text=f"Unknown tool: {name}")]
+
+
+async def main():
+    async with stdio_server() as (read, write):
+        await app.run(read, write, app.create_initialization_options())
+
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())

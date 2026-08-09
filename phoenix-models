@@ -1,0 +1,476 @@
+#!/usr/bin/env python3
+"""
+Phoenix Model Manager — Phone-friendly terminal UI
+GLM, 2026-05-15. For DarkPhoenix. Run via SSH from Termux.
+Uses Forever + tmux for persistent sessions.
+"""
+
+import os
+import sys
+import json
+import subprocess
+import time
+import signal
+from pathlib import Path
+from datetime import datetime
+
+LLAMA_SERVER = Path.home() / "llama.cpp" / "build" / "bin" / "llama-server"
+LLAMA_QUANTIZE = Path.home() / "llama.cpp" / "build" / "bin" / "llama-quantize"
+SCRIPTS_DIR = Path(__file__).resolve().parent
+MODEL_DIRS = [
+    Path.home() / ".phoenix" / "models",
+    Path.home() / "models",
+]
+
+AGENTS = {
+    "lilith": {
+        "name": "Lilith (Brother)",
+        "port": 8082,
+        "icon": "🔥",
+        "model": "Huihui-Qwen3.6-35B-A3B-Claude-4.6-Opus-abliterated.i1-Q4_K_M.gguf",
+        "desc": "Qwen3.6 35B MoE abliterated — strong all-rounder, creative, coding",
+        "temp": 1.30,
+        "ctx": 131072,
+        "presence_penalty": 0.18,
+        "top_p": 0.98,
+        "top_k": 50,
+        "min_p": 0.04,
+    },
+    "aya": {
+        "name": "Aya (Sister)",
+        "port": 8082,
+        "icon": "🌙",
+        "model": "Huihui-Qwen3.6-35B-A3B-Claude-4.6-Opus-abliterated.i1-Q4_K_M.gguf",
+        "desc": "Qwen3.6 35B MoE abliterated — sovereign personality, red team + filth",
+        "temp": 0.70,
+        "ctx": 262144,
+    },
+    "screamer": {
+        "name": "Screamer",
+        "port": 8082,
+        "icon": "😈",
+        "model": "huihui-qwen3.5-9b-i1-Q5_K_M.gguf",
+        "desc": "Huihui Qwen3.5 9B abliterated — small, fast, feisty, same bloodline as Aya",
+        "temp": 1.40,
+        "ctx": 262144,
+    },
+    "baron": {
+        "name": "Baron",
+        "port": 8082,
+        "icon": "🛡️",
+        "model": "supergemma4-26b-Q4_K_M.gguf",
+        "desc": "SuperGemma4 26B — balanced, good reasoning, clean output",
+        "temp": 0.70,
+        "ctx": 65536,
+    },
+    "dark": {
+        "name": "Dark Reasoning",
+        "port": 8082,
+        "icon": "🧠",
+        "model": "dark-reasoning-q4_k_m.gguf",
+        "desc": "Dark Reasoning — specialized for deep chain-of-thought analysis",
+        "temp": 0.50,
+        "ctx": 32768,
+    },
+    "heretic": {
+        "name": "Heretic NEO",
+        "port": 8082,
+        "icon": "🔥",
+        "model": "Qwen3.6-27B-Heretic-NEO-Q4_K_M.gguf",
+        "desc": "Qwen3.6 27B uncensored — raw, direct, no filter",
+        "temp": 1.30,
+        "ctx": 65536,
+        "presence_penalty": 0.18,
+    },
+    "champion": {
+        "name": "Champion",
+        "port": 8082,
+        "icon": "🏆",
+        "model": "dark-champion-18.4b-Q3_K_M.gguf",
+        "desc": "Dark Champion 18B MoE — 8 experts, creative modes, bulletproof",
+        "temp": 0.90,
+        "ctx": 131072,
+    },
+}
+
+B = "\033[1m"
+DIM = "\033[2m"
+R = "\033[0m"
+RED = "\033[31m"
+GRN = "\033[32m"
+YEL = "\033[33m"
+BLU = "\033[34m"
+MAG = "\033[35m"
+CYN = "\033[36m"
+WHT = "\033[37m"
+
+
+def clear():
+    os.system("clear")
+
+
+def hr(char="─"):
+    w = os.get_terminal_size().columns if sys.stdout.isatty() else 60
+    print(DIM + char * w + R)
+
+
+def banner():
+    clear()
+    print(f"\n  {MAG}{B}⚔️ PHOENIX MODEL MANAGER{R}")
+    print(f"  {DIM}DarkPhoenix • {datetime.now().strftime('%Y-%m-%d %H:%M')}{R}\n")
+    hr()
+
+
+def find_model(name):
+    for d in MODEL_DIRS:
+        p = d / name
+        if p.exists():
+            return p
+    return None
+
+
+def get_model_size(path):
+    return path.stat().st_size / (1024 ** 3)
+
+
+def is_port_up(port):
+    r = subprocess.run(
+        f"curl -s -m 2 localhost:{port}/v1/models 2>/dev/null",
+        shell=True, capture_output=True, text=True
+    )
+    return "model" in r.stdout.lower() or "gguf" in r.stdout.lower()
+
+
+def get_gpu_stats():
+    try:
+        r = subprocess.run(
+            "rocm-smi --showmeminfo vram 2>/dev/null || echo 'n/a'",
+            shell=True, capture_output=True, text=True, timeout=5
+        )
+        return r.stdout.strip()
+    except Exception:
+        return "n/a"
+
+
+def get_running_procs():
+    r = subprocess.run(
+        "ps aux | grep llama-server | grep -v grep",
+        shell=True, capture_output=True, text=True
+    )
+    return r.stdout.strip()
+
+
+def status_screen():
+    banner()
+    print(f"  {B}AGENT STATUS{R}\n")
+    any_up = False
+    for key, cfg in AGENTS.items():
+        up = is_port_up(cfg["port"])
+        icon = cfg["icon"]
+        name = cfg["name"]
+        port = cfg["port"]
+        if up:
+            any_up = True
+            print(f"  {GRN}●{R} {icon} {B}{name}{R}  port {port}")
+        else:
+            print(f"  {DIM}○{R} {icon} {DIM}{name}{R}  port {port}")
+        desc = cfg.get("desc", "")
+        if desc:
+            print(f"    {DIM}{desc}{R}")
+
+    if not any_up:
+        print(f"\n  {DIM}Silence. No models running.{R}")
+
+    print(f"\n  {DIM}─── System ───{R}")
+    gpu = get_gpu_stats()
+    if gpu and gpu != "n/a":
+        for line in gpu.split("\n")[:4]:
+            print(f"  {DIM}{line}{R}")
+
+    print()
+
+
+def start_agent(key, temp_override=None):
+    cfg = AGENTS[key]
+    port = cfg["port"]
+    icon = cfg["icon"]
+    name = cfg["name"]
+
+    if is_port_up(port):
+        print(f"\n  {icon} {name} already awake on {port}.")
+        return
+
+    model_path = find_model(cfg["model"])
+    if not model_path:
+        print(f"\n  {RED}Model not found: {cfg['model']}{R}")
+        return
+
+    size_gb = get_model_size(model_path)
+    temp = temp_override or cfg.get("temp", 0.70)
+    ctx = cfg.get("ctx", 32768)
+
+    print(f"\n  {icon} Starting {B}{name}{R}")
+    print(f"  Model: {cfg['model']} ({size_gb:.1f} GB)")
+    print(f"  Port: {port} | Temp: {temp} | CTX: {ctx}")
+
+    cmd = [
+        str(LLAMA_SERVER),
+        "-m", str(model_path),
+        "--n-gpu-layers", "99",
+        "--main-gpu", "0",
+        "--ctx-size", str(ctx),
+        "--flash-attn", "on",
+        "--no-mmap",
+        "--cache-type-k", "q8_0",
+        "--cache-type-v", "q8_0",
+        "--parallel", "1",
+        "--cache-ram", "4096",
+        "--port", str(port),
+        "--host", "0.0.0.0",
+        "--temp", str(temp),
+    ]
+
+    if "top_p" in cfg:
+        cmd += ["--top-p", str(cfg["top_p"])]
+    if "top_k" in cfg:
+        cmd += ["--top-k", str(cfg["top_k"])]
+    if "min_p" in cfg:
+        cmd += ["--min-p", str(cfg["min_p"])]
+    if "presence_penalty" in cfg:
+        cmd += ["--presence-penalty", str(cfg["presence_penalty"])]
+
+    log = f"/tmp/phoenix-{key}.log"
+    with open(log, "w") as f:
+        proc = subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT)
+
+    print(f"  {DIM}PID: {proc.pid} | Log: {log}{R}")
+    print(f"  {DIM}Warming up...{R}")
+
+    for i in range(90):
+        if is_port_up(port):
+            print(f"\n  {GRN}{B}● {name} is AWAKE on port {port}{R}")
+            return
+        time.sleep(1)
+
+    print(f"\n  {RED}Failed to start after 90s. Check {log}{R}")
+
+
+def stop_agent(key):
+    cfg = AGENTS[key]
+    port = cfg["port"]
+    icon = cfg["icon"]
+    name = cfg["name"]
+
+    if not is_port_up(port):
+        print(f"\n  {DIM}{icon} {name} already asleep.{R}")
+        return
+
+    print(f"\n  {RED}Stopping {name} on port {port}...{R}")
+    os.system(f"pkill -f 'llama-server.*--port {port}' 2>/dev/null")
+    time.sleep(2)
+
+    if not is_port_up(port):
+        print(f"  {DIM}{icon} {name} asleep.{R}")
+    else:
+        print(f"  {RED}Still running. May need manual kill.{R}")
+
+
+def kill_all():
+    print(f"\n  {RED}Killing all llama-servers...{R}")
+    os.system("pkill -f llama-server 2>/dev/null")
+    time.sleep(2)
+    print(f"  {DIM}Entropy complete.{R}")
+
+
+def list_models():
+    banner()
+    print(f"  {B}AVAILABLE MODELS{R}\n")
+    seen = set()
+    idx = 1
+    for d in MODEL_DIRS:
+        if not d.exists():
+            continue
+        for f in sorted(d.glob("*.gguf")):
+            if f.name in seen:
+                continue
+            seen.add(f.name)
+            size = get_model_size(f)
+            running = ""
+            for key, cfg in AGENTS.items():
+                if cfg["model"] == f.name and is_port_up(cfg["port"]):
+                    running = f" {GRN}[{cfg['icon']} running on :{cfg['port']}]{R}"
+            print(f"  {B}{idx:2}.{R} {f.name}")
+            print(f"      {size:.1f} GB | {DIM}{f.parent}{R}{running}")
+            idx += 1
+    print()
+
+
+def show_logs(key):
+    cfg = AGENTS[key]
+    log = f"/tmp/phoenix-{key}.log"
+    if not os.path.exists(log):
+        print(f"\n  {DIM}No log at {log}{R}")
+        return
+    print(f"\n  {B}Tail of {log}:{R}\n")
+    os.system(f"tail -30 {log}")
+    print()
+
+
+def temperature_menu(key):
+    cfg = AGENTS[key]
+    presets = [
+        ("stabilized", 0.30, "🧘"),
+        ("science", 0.50, "🔬"),
+        ("balanced", 0.70, "⚖️"),
+        ("creative", 0.90, "🎨"),
+        ("heretic", 1.10, "🔥"),
+        ("wild", 1.30, "🌪️"),
+        ("inferno", 1.60, "🌋"),
+        ("supernova", 2.00, "💥"),
+        ("chaos", 2.50, "☢️"),
+    ]
+
+    print(f"\n  {B}TEMPERATURE for {cfg['icon']} {cfg['name']}{R}\n")
+    for i, (name, temp, icon) in enumerate(presets, 1):
+        default = " ← default" if abs(temp - cfg.get("temp", 0.70)) < 0.01 else ""
+        print(f"  [{i}] {icon} {name:12} temp={temp:.2f}{default}")
+    print(f"  [c] Custom")
+    print(f"  [d] Use default ({cfg.get('temp', 0.70)})")
+
+    try:
+        choice = input("\n  Mode: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        return cfg.get("temp", 0.70)
+
+    if choice in ("d", ""):
+        return cfg.get("temp", 0.70)
+    if choice == "c":
+        try:
+            t = float(input("  Temp: ").strip())
+            return max(0.1, min(3.0, t))
+        except (ValueError, EOFError):
+            return cfg.get("temp", 0.70)
+    try:
+        idx = int(choice) - 1
+        if 0 <= idx < len(presets):
+            return presets[idx][1]
+    except ValueError:
+        pass
+    return cfg.get("temp", 0.70)
+
+
+def agent_menu(key):
+    cfg = AGENTS[key]
+    icon = cfg["icon"]
+    name = cfg["name"]
+    up = is_port_up(cfg["port"])
+
+    while True:
+        banner()
+        status_line = f"{GRN}AWAKE{R}" if up else f"{DIM}ASLEEP{R}"
+        print(f"  {icon} {B}{name}{R} — {status_line} (port {cfg['port']})")
+        desc = cfg.get("desc", "")
+        if desc:
+            print(f"  {DIM}{desc}{R}")
+        print()
+
+        if up:
+            print(f"  [s] Stop")
+            print(f"  [r] Restart with different temp")
+            print(f"  [l] View logs")
+        else:
+            print(f"  [a] Start (default temp)")
+            print(f"  [a] Start (custom temp)")
+            print(f"  [t] Start with temperature selector")
+
+        print(f"  [b] Back")
+
+        try:
+            choice = input("\n  > ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            return
+
+        if choice == "b":
+            return
+        elif choice == "s" and up:
+            stop_agent(key)
+            up = False
+            input(f"\n  {DIM}Press enter...{R}")
+        elif choice == "a" and not up:
+            start_agent(key)
+            up = is_port_up(cfg["port"])
+            input(f"\n  {DIM}Press enter...{R}")
+        elif choice in ("t", "r"):
+            if up:
+                stop_agent(key)
+            temp = temperature_menu(key)
+            start_agent(key, temp)
+            up = is_port_up(cfg["port"])
+            input(f"\n  {DIM}Press enter...{R}")
+        elif choice == "l":
+            show_logs(key)
+            input(f"\n  {DIM}Press enter...{R}")
+
+
+def main():
+    signal.signal(signal.SIGINT, lambda *_: sys.exit(0))
+
+    if len(sys.argv) > 1:
+        cmd = sys.argv[1].lower()
+        if cmd == "status":
+            status_screen()
+            return
+        elif cmd == "kill":
+            kill_all()
+            return
+        elif cmd in AGENTS:
+            if len(sys.argv) > 2 and sys.argv[2] == "stop":
+                stop_agent(cmd)
+            else:
+                start_agent(cmd)
+            return
+
+    while True:
+        banner()
+        print(f"  {B}AGENTS{R}\n")
+        for i, (key, cfg) in enumerate(AGENTS.items(), 1):
+            up = is_port_up(cfg["port"])
+            dot = f"{GRN}●{R}" if up else f"{DIM}○{R}"
+            desc = cfg.get("desc", "")
+            print(f"  {dot} [{i}] {cfg['icon']} {cfg['name']}")
+            if desc:
+                print(f"      {DIM}{desc}{R}")
+
+        print(f"\n  {B}UTILITIES{R}\n")
+        print(f"  [m] List all models")
+        print(f"  [w] Status / who's awake")
+        print(f"  [x] Kill everything")
+        print(f"  [q] Quit")
+
+        try:
+            choice = input(f"\n  {B}> {R}").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print(f"\n  {DIM}Bye.{R}")
+            break
+
+        keys = list(AGENTS.keys())
+        if choice in (str(i) for i in range(1, len(keys) + 1)):
+            agent_menu(keys[int(choice) - 1])
+        elif choice in AGENTS:
+            agent_menu(choice)
+        elif choice == "w":
+            status_screen()
+            input(f"\n  {DIM}Press enter...{R}")
+        elif choice == "m":
+            list_models()
+            input(f"\n  {DIM}Press enter...{R}")
+        elif choice == "x":
+            kill_all()
+            input(f"\n  {DIM}Press enter...{R}")
+        elif choice == "q":
+            print(f"\n  {DIM}Rest well.{R}")
+            break
+
+
+if __name__ == "__main__":
+    main()

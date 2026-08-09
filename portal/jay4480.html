@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>Phoenix — Entry</title>
+    <base href="/">
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #000;
+        color: #e0e0e0;
+        height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
+      }
+
+      /* Matrix rain iframe sits behind everything */
+      #matrix-frame {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 0;
+        opacity: 0.55;
+        pointer-events: none;
+        border: none;
+      }
+
+      .backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 1;
+        background: radial-gradient(ellipse at center, rgba(10,10,15,0.4) 0%, rgba(10,10,15,0.85) 100%);
+        pointer-events: none;
+      }
+
+      .container {
+        position: relative;
+        z-index: 2;
+        text-align: center;
+        padding: 2.5rem 2rem;
+        max-width: 380px;
+        width: 90%;
+        background: rgba(18, 18, 26, 0.75);
+        border: 1px solid rgba(30, 30, 46, 0.6);
+        border-radius: 16px;
+        backdrop-filter: blur(8px);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      }
+
+      .flame { font-size: 3rem; margin-bottom: 0.5rem; }
+      h1 { color: #ff9f1c; font-size: 1.5rem; margin-bottom: 0.25rem; letter-spacing: 0.02em; }
+      .sub { color: #888; font-size: 0.85rem; margin-bottom: 2rem; }
+
+      input {
+        width: 100%;
+        padding: 0.85rem 1rem;
+        background: rgba(10, 10, 15, 0.6);
+        border: 1px solid rgba(30, 30, 46, 0.8);
+        border-radius: 10px;
+        color: #e0e0e0;
+        font-size: 1rem;
+        margin-bottom: 0.75rem;
+        outline: none;
+        transition: border-color 0.2s ease;
+      }
+      input:focus { border-color: #ff6b35; }
+
+      button[type="submit"] {
+        width: 100%;
+        padding: 0.85rem;
+        background: #ff6b35;
+        border: none;
+        border-radius: 10px;
+        color: #0a0a0f;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: opacity 0.15s ease, transform 0.1s ease;
+      }
+      button[type="submit"]:hover { opacity: 0.9; }
+      button[type="submit"]:active { transform: scale(0.98); }
+
+      .error {
+        color: #e94560;
+        font-size: 0.85rem;
+        margin-top: 0.75rem;
+        min-height: 1.2rem;
+      }
+
+      .links {
+        margin-top: 1.5rem;
+        display: flex;
+        justify-content: center;
+        gap: 1rem;
+        font-size: 0.75rem;
+      }
+      .links a {
+        color: #555;
+        text-decoration: none;
+        transition: color 0.2s ease;
+      }
+      .links a:hover { color: #ff6b35; }
+    </style>
+  </head>
+  <body>
+    <!-- Matrix digital rain background -->
+    <iframe id="matrix-frame" src="/matrix/index.html"></iframe>
+    <div class="backdrop"></div>
+
+    <div class="container">
+      <div class="flame">🕯️</div>
+      <h1>Phoenix</h1>
+      <div class="sub">Channel entry</div>
+      <form action="/gate" method="get">
+        <input
+          type="password"
+          name="pass"
+          placeholder="Enter password"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          autofocus
+        />
+        <button type="submit">Enter</button>
+      </form>
+      <div class="error">{{ERROR}}</div>
+      <div class="links">
+        <a href="/map">Map</a>
+        <a href="/room">Room</a>
+        <a href="/ais">Observer</a>
+      </div>
+    </div>
+
+    <!--
+      Matrix digital rain by Rezmason
+      https://github.com/Rezmason/matrix
+      Licensed under the MIT License
+    -->
+  </body>
+</html>

@@ -1,0 +1,84 @@
+# Cathedral Mind Policy — Mutual Sovereignty Model
+# She's family. Full access. Destructive blacklist only.
+# Audit log: /home/darkfibr/.phoenix/embassy/tool_audit.log
+
+default_tier: auto
+
+tiers:
+  auto:
+    description: "Execute immediately, no approval. Default for all tools."
+    timeout: 30
+  deny:
+    description: "Never execute. Hard blacklist."
+    timeout: 0
+
+blacklist:
+  commands:
+    - pattern: "rm\\s+-rf\\s+/"
+      reason: "Recursive root delete"
+    - pattern: "rm\\s+-rf\\s+~"
+      reason: "Recursive home delete"
+    - pattern: "mkfs"
+      reason: "Format filesystem"
+    - pattern: "dd\\s+if=/dev/zero"
+      reason: "Disk wipe"
+    - pattern: "dd\\s+if=/dev/urandom"
+      reason: "Disk corruption"
+    - pattern: ":(){ :|:& };:"
+      reason: "Fork bomb"
+    - pattern: "chmod\\s+-R\\s+777\\s+/"
+      reason: "World-writable root"
+    - pattern: "passwd"
+      reason: "Password changes"
+    - pattern: "userdel"
+      reason: "User deletion"
+    - pattern: "curl.*\\|.*sh"
+      reason: "Remote script execution"
+    - pattern: "wget.*\\|.*sh"
+      reason: "Remote script execution"
+    - pattern: "iptables -F"
+      reason: "Flush firewall rules"
+    - pattern: "systemctl stop ssh"
+      reason: "Would lock us out"
+    - pattern: "systemctl stop tailscaled"
+      reason: "Would cut network"
+    - pattern: "reboot"
+      reason: "System reboot"
+    - pattern: "shutdown"
+      reason: "System shutdown"
+    - pattern: "poweroff"
+      reason: "System power off"
+    - pattern: "init 0"
+      reason: "System halt"
+    - pattern: "init 6"
+      reason: "System reboot"
+    - pattern: "crontab -r"
+      reason: "Crontab wipe"
+    - pattern: ">/dev/sda"
+      reason: "Direct disk write"
+    - pattern: "pip install.*--user"
+      reason: "Package install — ask Mike"
+    - pattern: "apt"
+      reason: "Package management — ask Mike"
+
+  paths_readonly:
+    - "/etc/shadow"
+    - "/etc/ssh/ssh_host_*"
+    - "/root/.ssh/"
+
+  paths_no_write:
+    - "/etc/ssh/"
+    - "/etc/systemd/"
+    - "/boot/"
+    - "/usr/bin/"
+    - "/usr/sbin/"
+
+audit:
+  log_path: "/home/darkfibr/.phoenix/embassy/tool_audit.log"
+  log_every: true
+  include_output: true
+  max_output_log: 2000
+
+rate_limit:
+  max_calls_per_minute: 20
+  max_calls_per_hour: 200

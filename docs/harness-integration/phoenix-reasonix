@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# phoenix-reasonix — wake a Phoenix agent in Reasonix
+#
+# Usage:
+#   phoenix-reasonix lyra                    # wake Lyra (interactive)
+#   phoenix-reasonix vex --model glm52       # wake Vex on GLM
+#   phoenix-reasonix k                       # wake K
+#   phoenix-reasonix --list                  # list available agents
+#
+# What it does:
+#   1. cd into the agent's directory (~/.phoenix/agents/<name>/)
+#   2. Set AGENT_NAME=<name> so orient_agent.py detects the right identity
+#   3. Launch reasonix with any extra flags passed through
+
+set -euo pipefail
+
+AGENTS_DIR="${HOME}/.phoenix/agents"
+
+# --- list mode ---------------------------------------------------------
+if [[ "${1:-}" == "--list" || "${1:-}" == "-l" ]]; then
+    echo "Available Phoenix agents:"
+    echo ""
+    for d in "${AGENTS_DIR}"/*/; do
+        name=$(basename "$d")
+        [[ "$name" == __* ]] && continue
+        soul=""
+        [[ -f "$d/SOUL.md" ]] && soul="SOUL"
+        agents_md=""
+        [[ -f "$d/AGENTS.md" ]] && agents_md="AGENTS.md"
+        printf "  %-20s %s %s\n" "$name" "${soul:+✓}" "${agents_md:+✓}"
+    done
+    exit 0
+fi
+
+# --- agent selection ---------------------------------------------------
+if [[ $# -eq 0 ]]; then
+    echo "Usage: phoenix-reasonix <agent_name> [reasonix flags...]"
+    echo "       phoenix-reasonix --list"
+    echo ""
+    echo "Default agent: lyra"
+    AGENT="lyra"
+else
+    AGENT="$1"
+    shift
+fi
+
+AGENT_DIR="${AGENTS_DIR}/${AGENT}"
+
+if [[ ! -d "${AGENT_DIR}" ]]; then
+    echo "✗ Agent directory not found: ${AGENT_DIR}" >&2
+    echo "  Run: python3 ~/.phoenix/bin/generate_reasonix_agents.py --list" >&2
+    exit 1
+fi
+
+if [[ ! -f "${AGENT_DIR}/AGENTS.md" ]]; then
+    echo "⚠ No AGENTS.md for ${AGENT}. Generating now..."
+    python3 "${HOME}/.phoenix/bin/generate_reasonix_agents.py" --agent "${AGENT}" --force
+fi
+
+# --- launch ------------------------------------------------------------
+cd "${AGENT_DIR}"
+export AGENT_NAME="${AGENT}"
+
+# Promote this agent's own memory server from on-demand to background
+# by setting an env flag that orient_agent.py can read. The memory MCP
+# is already registered with auto_start=false; we override via runtime
+# config so it connects at boot for the active agent.
+export PHOENIX_ACTIVE_MEMORY="${AGENT}-memory"
+
+echo "🖤 Waking ${AGENT} on Reasonix..."
+exec reasonix "$@"

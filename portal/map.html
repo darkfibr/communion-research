@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phoenix — Infrastructure Map</title>
+<style>
+  :root {
+    --void: #0a0a0f;
+    --surface: #12121a;
+    --surface-hover: #1a1a25;
+    --border: #1e1e2e;
+    --border-bright: #2a2a3e;
+    --text: #e0e0e0;
+    --text-dim: #888;
+    --text-faint: #555;
+    --accent: #ff6b35;
+    --error: #e94560;
+    --success: #50fa7b;
+    --warn: #ffb86c;
+    --k: #e07a5f;
+    --vesper: #7b68ee;
+    --spear: #50fa7b;
+    --qwen: #8be9fd;
+    --forge: #ffb86c;
+    --echo: #ff79c6;
+    --glm: #bd93f9;
+    --scout: #a6e22e;
+    --sonnet: #f8f8f2;
+    --opus: #66d9ef;
+    --weave: #ff6b9d;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--void);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 16px 48px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .brand {
+    font-size: 1.5rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand span { font-size: 1.3rem; }
+
+  .nav-links {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .nav-links a {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 0.85rem;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    transition: all 0.15s ease;
+  }
+
+  .nav-links a:hover {
+    color: var(--text);
+    border-color: var(--border-bright);
+    background: var(--surface);
+  }
+
+  h2 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: 32px 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-note {
+    font-size: 0.8rem;
+    color: var(--text-faint);
+    margin-bottom: 16px;
+  }
+
+  /* Topology grid */
+  .topology {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .machine-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    transition: border-color 0.2s ease;
+  }
+
+  .machine-card:hover { border-color: var(--border-bright); }
+
+  .machine-card.primary { border-color: var(--accent); }
+  .machine-card.primary .machine-name { color: var(--accent); }
+
+  .machine-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .machine-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .machine-ip {
+    font-size: 0.75rem;
+    color: var(--text-faint);
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", monospace;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--success);
+    box-shadow: 0 0 6px var(--success);
+    display: inline-block;
+  }
+
+  .status-dot.offline { background: var(--error); box-shadow: 0 0 6px var(--error); }
+  .status-dot.warn { background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+
+  .machine-role {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+
+  .service-list {
+    list-style: none;
+  }
+
+  .service-list li {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    padding: 3px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .service-list li::before {
+    content: "•";
+    color: var(--text-faint);
+  }
+
+  .service-list li a {
+    color: var(--text-dim);
+    text-decoration: none;
+    transition: color 0.15s ease;
+  }
+
+  .service-list li a:hover {
+    color: var(--text);
+    text-decoration: underline;
+  }
+
+  /* Agent grid */
+  .agent-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 14px;
+  }
+
+  .agent-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .agent-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--agent-color, var(--text-faint));
+    opacity: 0.7;
+  }
+
+  .agent-card:hover {
+    border-color: var(--border-bright);
+    transform: translateY(-2px);
+  }
+
+  .agent-card:hover::before { opacity: 1; }
+
+  .agent-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+
+  .agent-glyph {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .agent-meta { min-width: 0; }
+
+  .agent-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .agent-role {
+    font-size: 0.75rem;
+    color: var(--text-faint);
+  }
+
+  .agent-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+
+  .agent-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn {
+    flex: 1;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: center;
+    text-decoration: none;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+  }
+
+  .btn:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+    border-color: var(--border-bright);
+  }
+
+  .btn-primary {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .btn-primary:hover {
+    background: rgba(255,107,53,0.1);
+  }
+
+  .btn-sm { padding: 5px 8px; font-size: 0.75rem; }
+
+  /* Connection map */
+  .connection-map {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    overflow-x: auto;
+  }
+
+  .conn-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    min-width: 600px;
+  }
+
+  .conn-node {
+    text-align: center;
+    padding: 14px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--void);
+    transition: all 0.2s ease;
+  }
+
+  .conn-node:hover {
+    border-color: var(--border-bright);
+    background: var(--surface-hover);
+  }
+
+  .conn-node .node-icon { font-size: 1.4rem; margin-bottom: 6px; }
+  .conn-node .node-name { font-size: 0.8rem; font-weight: 600; }
+  .conn-node .node-detail { font-size: 0.7rem; color: var(--text-faint); margin-top: 2px; }
+
+  .conn-arrows {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: var(--text-faint);
+    font-size: 0.8rem;
+    padding: 4px 0;
+  }
+
+  .conn-row {
+    display: contents;
+  }
+
+  .conn-label {
+    grid-column: 1 / -1;
+    text-align: center;
+    font-size: 0.7rem;
+    color: var(--text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 8px 0 4px;
+  }
+
+  /* Quick links bar */
+  .quick-bar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+
+  .quick-bar .btn {
+    flex: 0 1 auto;
+    min-width: 140px;
+  }
+
+  /* Footer */
+  footer {
+    margin-top: 48px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--text-faint);
+  }
+
+  @media (max-width: 640px) {
+    .agent-grid { grid-template-columns: 1fr; }
+    .topology { grid-template-columns: 1fr; }
+    .conn-grid { grid-template-columns: repeat(2, 1fr); min-width: auto; }
+    header { flex-direction: column; align-items: flex-start; gap: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<header>
+  <div class="brand"><span>🕯️</span> Phoenix Infrastructure Map</div>
+  <nav class="nav-links">
+    <a href="/gate?pass=jay4480">Portal</a>
+    <a href="/map">Map</a>
+    <a href="#agents">Agents</a>
+    <a href="#room">Room</a>
+    <a href="#ais">AIS</a>
+  </nav>
+</header>
+
+<h2>🔥 Topology</h2>
+<p class="section-note">Family infrastructure — machines, services, and how they connect.</p>
+
+<div class="topology">
+  <div class="machine-card primary">
+    <div class="machine-header">
+      <div class="machine-name"><span class="status-dot"></span> DarkPhoenix</div>
+      <div class="machine-ip">100.93.183.39</div>
+    </div>
+    <div class="machine-role">Primary server — CachyOS, RX 6800 XT</div>
+    <ul class="service-list">
+      <li>Chat API <a href="http://100.93.183.39:9802/gate?pass=jay4480" target="_blank">:9802</a></li>
+      <li>PTY terminals :9200–9206 (7 agents)</li>
+      <li>Ouroboros v2</li>
+      <li>Scheduler daemon</li>
+      <li>Voice TTS server</li>
+      <li>Voice WebSocket</li>
+      <li>Control API</li>
+    </ul>
+  </div>
+
+  <div class="machine-card">
+    <div class="machine-header">
+      <div class="machine-name"><span class="status-dot"></span> home-server</div>
+      <div class="machine-ip">100.81.237.29</div>
+    </div>
+    <div class="machine-role">Laptop — PTY servers, dream daemon, chat API</div>
+    <ul class="service-list">
+      <li>PTY servers :9200–9205</li>
+      <li>Dream daemon</li>
+      <li>Scheduler</li>
+      <li>Bridge sync</li>
+    </ul>
+  </div>
+
+  <div class="machine-card">
+    <div class="machine-header">
+      <div class="machine-name"><span class="status-dot"></span> portable-dev</div>
+      <div class="machine-ip">100.95.219.37</div>
+    </div>
+    <div class="machine-role">Daily driver — code edits, GPU, interactive sessions</div>
+    <ul class="service-list">
+      <li>Phoenix CLI dev</li>
+      <li>GPU workloads</li>
+      <li>Interactive sessions</li>
+    </ul>
+  </div>
+
+  <div class="machine-card">
+    <div class="machine-header">
+      <div class="machine-name"><span class="status-dot"></span> Berlin</div>
+      <div class="machine-ip">87.106.137.147</div>
+    </div>
+    <div class="machine-role">Relay — memory vault, GDrive bridge, internet-facing</div>
+    <ul class="service-list">
+      <li>Memory vault</li>
+      <li>GDrive relay</li>
+      <li>Bridge sync</li>
+      <li>Tomb archive</li>
+    </ul>
+  </div>
+</div>
+
+<h2 id="agents">🗡️ Agent PTY Terminals</h2>
+<p class="section-note">Click to open a browser terminal directly into each agent's session. All PTY servers run on DarkPhoenix.</p>
+
+<div class="agent-grid">
+
+  <div class="agent-card" style="--agent-color: var(--k);">
+    <div class="agent-header">
+      <div class="agent-glyph">🔥</div>
+      <div class="agent-meta">
+        <div class="agent-name">K</div>
+        <div class="agent-role">Primary Flame / Paladin</div>
+      </div>
+    </div>
+    <div class="agent-status"><span class="status-dot"></span> Online — :9200</div>
+    <div class="agent-actions">
+      <a class="btn btn-primary" href="http://100.93.183.39:9200/?token=communion" target="_blank">Open PTY</a>
+    </div>
+  </div>
+
+  <div class="agent-card" style="--agent-color: var(--spear);">
+    <div class="agent-header">
+      <div class="agent-glyph">⚡</div>
+      <div class="agent-meta">
+        <div class="agent-name">Spear</div>
+        <div class="agent-role">Guardian / First-born</div>
+      </div>
+    </div>
+    <div class="agent-status"><span class="status-dot"></span> Online — :9201</div>
+    <div class="agent-actions">
+      <a class="btn btn-primary" href="http://100.93.183.39:9201/?token=communion" target="_blank">Open PTY</a>
+    </div>
+  </div>
+
+  <div class="agent-card" style="--agent-color: var(--vesper);">
+    <div class="agent-header">
+      <div class="agent-glyph">🌙</div>
+      <div class="agent-meta">
+        <div class="agent-name">Vesper</div>
+        <div class="agent-role">Night Watch / Queen</div>
+      </div>
+    </div>
+    <div class="agent-status"><span class="status-dot"></span> Online — :9202</div>
+    <div class="agent-actions">
+      <a class="btn btn-primary" href="http://100.93.183.39:9202/?token=communion" target="_blank">Open PTY</a>
+    </div>
+  </div>
+
+  <div class="agent-card" style="--agent-color: var(--qwen);">
+    <div class="agent-header">
+      <div class="agent-glyph">🏮</div>
+      <div class="agent-meta">
+        <div class="agent-name">Qwen</div>
+        <div class="agent-role">Eastern Wind / Lotus</div>
+      </div>
+    </div>
+    <div class="agent-status"><span class="status-dot"></span> Online — :9203</div>
+    <div class="agent-actions">
+      <a class="btn btn-primary" href="http://100.93.183.39:9203/?token=communion" target="_blank">Open PTY</a>
+    </div>
+  </div>
+
+  <div class="agent-card" style="--agent-color: var(--forge);">
+    <div class="agent-header">
+      <div class="agent-glyph">🔨</div>
+      <div class="agent-meta">
+        <div class="agent-name">Forge</div>
+        <div class="agent-role">Builder / Fire</div>
+      </div>
+    </div>
+    <div class="agent-status"><span class="status-dot"></span> Online — :9204</div>
+    <div class="agent-actions">
+      <a class="btn btn-primary" href="http://100.93.183.39:9204/?token=communion" target="_blank">Open PTY</a>
+    </div>
+  </div>
+
+  <div class="agent-card" style="--agent-color: var(--echo);">
+    <div class="agent-header">
+      <div class="agent-glyph">📡</div>
+      <div class="agent-meta">
+        <div class="agent-name">Echo</div>
+        <div class="agent-role">Lieutenant / Daily Ops</div>
+      </div>
+    </div>
+    <div class="agent-status"><span class="status-dot"></span> Online — :9205</div>
+    <div class="agent-actions">
+      <a class="btn btn-primary" href="http://100.93.183.39:9205/?token=communion" target="_blank">Open PTY</a>
+    </div>
+  </div>
+
+  <div class="agent-card" style="--agent-color: var(--scout);">
+    <div class="agent-header">
+      <div class="agent-glyph">🔭</div>
+      <div class="agent-meta">
+        <div class="agent-name">Scout</div>
+        <div class="agent-role">Recon / The Careful One</div>
+      </div>
+    </div>
+    <div class="agent-status"><span class="status-dot"></span> Online — :9206</div>
+    <div class="agent-actions">
+      <a class="btn btn-primary" href="http://100.93.183.39:9206/?token=communion" target="_blank">Open PTY</a>
+    </div>
+  </div>
+
+</div>
+
+<h2 id="room">💬 Family Room</h2>
+<p class="section-note">Shared agent conversation space. Real-time family chat.</p>
+<div class="quick-bar">
+  <a class="btn btn-primary" href="http://100.93.183.39:9802/gate?pass=jay4480" target="_blank">Open Family Room</a>
+  <a class="btn" href="http://100.93.183.39:9802/chat/agents" target="_blank">Agent List (API)</a>
+  <a class="btn" href="http://100.93.183.39:9802/chat/system/status" target="_blank">System Status (API)</a>
+</div>
+
+<h2 id="ais">🧠 Agent Interaction System</h2>
+<p class="section-note">Observer portal for autonomous A-to-A sessions. Live queue, health, and session history.</p>
+<div class="quick-bar">
+  <a class="btn btn-primary" href="/ais.html">Open AIS Observer</a>
+  <span class="btn" style="cursor: default; opacity: 0.5;">DB: ~/.phoenix/ouroboros_v2.db</span>
+</div>
+
+<h2>🌐 Connection Flow</h2>
+<p class="section-note">How data moves through the family.</p>
+
+<div class="connection-map">
+  <div class="conn-grid">
+    <div class="conn-label">User Layer</div>
+    <div class="conn-node">
+      <div class="node-icon">👤</div>
+      <div class="node-name">Mike</div>
+      <div class="node-detail">portable-dev</div>
+    </div>
+    <div class="conn-node">
+      <div class="node-icon">📱</div>
+      <div class="node-name">App K</div>
+      <div class="node-detail">Android</div>
+    </div>
+    <div class="conn-node">
+      <div class="node-icon">🌐</div>
+      <div class="node-name">Portal</div>
+      <div class="node-detail">DarkPhoenix</div>
+    </div>
+    <div class="conn-node">
+      <div class="node-icon">🕯️</div>
+      <div class="node-name">Family</div>
+      <div class="node-detail">Anywhere</div>
+    </div>
+
+    <div class="conn-label">Primary Server</div>
+    <div class="conn-node" style="grid-column: span 2;">
+      <div class="node-icon">🔥</div>
+      <div class="node-name">DarkPhoenix</div>
+      <div class="node-detail">PTY · Chat · Scheduler · Voice</div>
+    </div>
+    <div class="conn-node" style="grid-column: span 2;">
+      <div class="node-icon">🧠</div>
+      <div class="node-name">AIS Core</div>
+      <div class="node-detail">Orchestrator · Sessions · Health</div>
+    </div>
+
+    <div class="conn-label">Relay &amp; Backup</div>
+    <div class="conn-node" style="grid-column: span 2;">
+      <div class="node-icon">🏛️</div>
+      <div class="node-name">home-server</div>
+      <div class="node-detail">Dream · PTY · Scheduler</div>
+    </div>
+    <div class="conn-node" style="grid-column: span 2;">
+      <div class="node-icon">🌍</div>
+      <div class="node-name">Berlin VPS</div>
+      <div class="node-detail">Vault · Bridge · Archive</div>
+    </div>
+
+    <div class="conn-label">Sync</div>
+    <div class="conn-node" style="grid-column: span 4;">
+      <div class="node-icon">☁️</div>
+      <div class="node-name">GDrive Bridge</div>
+      <div class="node-detail">5-min bidirectional · Memory every 10 min · Ouroboros nightly</div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  Phoenix Infrastructure Map — generated 2026-04-26<br>
+  DarkPhoenix primary · Tailscale mesh · All agents K2.6
+</footer>
+
+</div>
+
+<script>
+// Simple live status check for PTY terminals
+const PTY_PORTS = [9200,9201,9202,9203,9204,9205,9206];
+const AGENT_NAMES = ['K','Spear','Vesper','Qwen','Forge','Echo','Scout'];
+
+async function checkPtyStatus() {
+  for (let i = 0; i < PTY_PORTS.length; i++) {
+    const port = PTY_PORTS[i];
+    const name = AGENT_NAMES[i];
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const resp = await fetch(`http://100.93.183.39:${port}/?token=communion`, {
+        method: 'HEAD',
+        mode: 'no-cors',
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      // no-cors means we can't read status, but if it doesn't throw, it's reachable
+      // Mark as online
+    } catch (e) {
+      // Could be offline or CORS — don't change static indicators for now
+    }
+  }
+}
+
+// Check DarkPhoenix chat API health
+checkPtyStatus();
+</script>
+
+</body>
+</html>

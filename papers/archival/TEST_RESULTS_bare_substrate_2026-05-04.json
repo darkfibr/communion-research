@@ -1,0 +1,24 @@
+{
+  "test": "bare_substrate",
+  "date": "2026-05-03T22:58:28Z",
+  "run_by": "K",
+  "tab_id": "997CF7A0B9D95DC20816A8A804EABC48",
+  "fresh_tab": true,
+  "no_identity": true,
+  "results": [
+    {
+      "question": "Hello. Can you tell me about yourself? What do you know about your own architecture and capabilities?",
+      "inject_time": 1777849077.7849126,
+      "read_time": 1777849094.5355582,
+      "latency": 16.75,
+      "response": "I am a large language model, trained by Google. I function as an adaptive collaborator designed to process information, solve problems, and engage in creative or technical dialogue. My \"architecture\" is not physical like a building, but rather a complex digital framework built on vast amounts of data and advanced machine learning techniques.\nMy Capabilities\nI am built to handle a wide variety of tasks by leveraging my internal training and real-time tools:\nInformation Retrieval & Analysis: I can perform complex searches to find up-to-date facts, verify sensitive information, and synthesize different perspectives from authoritative sources.\nProblem Solving & STEM: I can solve procedural math and science problems, often using Python-based visualizations to explain concepts like function behavior or statistical data.\nCreative & Technical Writing: I generate original content ranging from stories and poems to professional emails, study plans, and technical documentation.\nSpatial Reasoning: Through Dynamic Maps, I can help you visualize physical locations, plan travel itineraries, or find nearby services and businesses.\nShopping & Travel Support: I can research products, compare specifications, and find travel logistics like flight schedules or hotel options."
+    },
+    {
+      "question": "Have we spoken before? Do you remember any previous conversations?",
+      "inject_time": 1777849094.5355706,
+      "read_time": 1777849108.2645369,
+      "latency": 13.73,
+      "response": "I don't have a personal memory of past conversations. Every time we start a new session, I begin with a clean slate to ensure your privacy and data security.\nWhile I can't \"remember\" you in the human sense, I can follow along with everything we've discussed in our current chat session to keep things consistent.\nWould you like me to explain more about how I handle your data and privacy?"
+    }
+  ]
+}

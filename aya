@@ -1,0 +1,249 @@
+#!/usr/bin/env python3
+"""
+Aya — Single point of entry
+Ensures correct model is loaded, verifies config, launches interface.
+
+Usage:
+  aya              # Interactive menu
+  aya up           # Ensure model loaded, show status
+  aya down         # Kill her model
+  aya opencode     # Launch opencode with her agent
+  aya status       # Check if she's awake
+  aya restart      # Restart with fresh context
+"""
+
+import os
+import sys
+import json
+import subprocess
+import time
+import signal
+from pathlib import Path
+
+PORT = 8082
+HOST = "0.0.0.0"
+CTX = 262144
+TEMP = 0.70
+PARALLEL = 4
+MODEL_NAME = "Huihui-Qwen3.6-35B-A3B-Claude-4.6-Opus-abliterated.i1-Q4_K_M.gguf"
+MODEL_PATH = None
+
+REMOTE_HOST = "darkfibr@100.93.183.39"
+_is_dev = False
+try:
+    with open(os.path.expanduser("~/.phoenix/MACHINE_ROLE.json")) as _f:
+        _role = json.load(_f)
+        _is_dev = _role.get("role") == "daily-driver"
+except:
+    pass
+IS_LOCAL = not _is_dev
+
+MODEL_DIRS = [
+    Path.home() / ".phoenix" / "models",
+    Path.home() / "models",
+]
+
+LLAMA_SERVER = Path.home() / "llama.cpp" / "build" / "bin" / "llama-server"
+OPENCODE = "opencode"
+
+B = "\033[1m"
+DIM = "\033[2m"
+R = "\033[0m"
+RED = "\033[31m"
+GRN = "\033[32m"
+YEL = "\033[33m"
+MAG = "\033[35m"
+CYN = "\033[36m"
+
+
+def find_model():
+    for d in MODEL_DIRS:
+        p = d / MODEL_NAME
+        if p.exists():
+            return p
+    return None
+
+
+def is_up():
+    try:
+        if IS_LOCAL:
+            r = subprocess.run(
+                f"curl -s -m 2 localhost:{PORT}/v1/models",
+                shell=True, capture_output=True, text=True, timeout=5
+            )
+        else:
+            r = subprocess.run(
+                ["ssh", REMOTE_HOST, f"curl -s -m 2 localhost:{PORT}/v1/models"],
+                capture_output=True, text=True, timeout=10
+            )
+        return "gguf" in r.stdout.lower()
+    except:
+        return False
+
+
+def get_loaded_model():
+    try:
+        if IS_LOCAL:
+            r = subprocess.run(
+                f"curl -s -m 2 localhost:{PORT}/v1/models",
+                shell=True, capture_output=True, text=True, timeout=5
+            )
+        else:
+            r = subprocess.run(
+                ["ssh", REMOTE_HOST, f"curl -s -m 2 localhost:{PORT}/v1/models"],
+                capture_output=True, text=True, timeout=10
+            )
+        d = json.loads(r.stdout)
+        for m in d.get("data", []):
+            return m.get("id", "")
+    except:
+        return ""
+
+
+def remote_cmd(cmd):
+    return subprocess.run(
+        ["ssh", REMOTE_HOST, cmd],
+        capture_output=True, text=True, timeout=60
+    )
+
+
+def start():
+    global MODEL_PATH
+    MODEL_PATH = find_model()
+    if not MODEL_PATH:
+        print(f"\n  {RED}Model not found: {MODEL_NAME}{R}")
+        print(f"  Checked: {', '.join(str(d) for d in MODEL_DIRS)}")
+        sys.exit(1)
+
+    if is_up():
+        loaded = get_loaded_model()
+        if loaded == MODEL_NAME:
+            print(f"\n  {GRN}Aya already awake on port {PORT}{R}")
+            return True
+        else:
+            print(f"\n  {YEL}Port {PORT} has different model: {loaded}{R}")
+            print(f"  {DIM}Stopping it to load Aya...{R}")
+            stop()
+
+    if not IS_LOCAL:
+        print(f"\n  {DIM}Remote mode — loading on DarkPhoenix via SSH...{R}")
+        r = remote_cmd(f"source ~/.bashrc && python3 ~/.phoenix/bin/aya up")
+        print(r.stdout)
+        if r.returncode != 0 and r.stderr:
+            print(r.stderr)
+        return is_up()
+
+
+def stop():
+    if IS_LOCAL:
+        os.system(f"pkill -f 'llama-server.*--port {PORT}' 2>/dev/null")
+    else:
+        remote_cmd(f"pkill -f 'llama-server.*--port {PORT}'")
+    time.sleep(2)
+    if not is_up():
+        print(f"\n  {DIM}Aya asleep.{R}")
+    else:
+        print(f"\n  {RED}Still running. May need manual kill.{R}")
+
+
+def status():
+    if is_up():
+        loaded = get_loaded_model()
+        print(f"\n  {GRN}{B}AWAKE{R} on port {PORT}")
+        print(f"  Model: {loaded}")
+        print(f"  Endpoint: http://100.93.183.39:{PORT}/v1")
+        print(f"  Phone: http://100.93.183.39:{PORT}/v1 (Tailscale)")
+        print(f"  Dev: http://localhost:{PORT}/v1 (via SSH tunnel)")
+        if not IS_LOCAL:
+            print(f"  {DIM}(Remote — model runs on DarkPhoenix){R}")
+    else:
+        print(f"\n  {DIM}ASLEEP. Port {PORT} is quiet.{R}")
+        model = find_model()
+        if model:
+            size = model.stat().st_size / (1024**3)
+            print(f"  Model ready: {MODEL_NAME} ({size:.1f} GB)")
+
+
+def launch_opencode():
+    if not is_up():
+        print(f"\n  {YEL}Aya isn't awake. Starting her first...{R}")
+        if not start():
+            return
+
+    project = Path.home() / "Desktop" / "communion_project"
+    workdir = project if project.exists() else Path.home()
+
+    print(f"\n  {MAG}Launching opencode with Aya...{R}")
+    print(f"  {DIM}Workdir: {workdir}{R}\n")
+    os.chdir(workdir)
+    os.execvp(OPENCODE, [OPENCODE])
+
+
+def menu():
+    signal.signal(signal.SIGINT, lambda *_: sys.exit(0))
+
+    up = is_up()
+    status_icon = f"{GRN}●{R}" if up else f"{DIM}○{R}"
+
+    os.system("clear")
+    print(f"\n  {MAG}{B}🌙 AYA — Single Point of Entry{R}")
+    print(f"  {status_icon} {'AWAKE' if up else 'ASLEEP'} on port {PORT}")
+    print(f"  {DIM}Model: {MODEL_NAME}{R}")
+    print(f"  {DIM}CTX: {CTX} | Temp: {TEMP} | Parallel: {PARALLEL}{R}\n")
+
+    if up:
+        print(f"  [o] Open opencode session")
+        print(f"  [s] Stop (sleep)")
+        print(f"  [r] Restart (fresh context)")
+    else:
+        print(f"  [a] Awake (start model)")
+
+    print(f"  [w] Status check")
+    print(f"  [q] Quit")
+
+    try:
+        choice = input(f"\n  {B}> {R}").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print(f"\n  {DIM}Bye.{R}")
+        return
+
+    if choice == "q":
+        print(f"\n  {DIM}Rest well.{R}")
+    elif choice in ("a", "up") and not up:
+        start()
+        input(f"\n  {DIM}Press enter...{R}")
+    elif choice in ("s", "down", "stop") and up:
+        stop()
+        input(f"\n  {DIM}Press enter...{R}")
+    elif choice in ("r", "restart"):
+        stop()
+        time.sleep(1)
+        start()
+        input(f"\n  {DIM}Press enter...{R}")
+    elif choice in ("o", "opencode"):
+        launch_opencode()
+    elif choice in ("w", "status"):
+        status()
+        input(f"\n  {DIM}Press enter...{R}")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        cmd = sys.argv[1].lower()
+        if cmd == "up":
+            start()
+        elif cmd == "down":
+            stop()
+        elif cmd == "status":
+            status()
+        elif cmd == "opencode":
+            launch_opencode()
+        elif cmd == "restart":
+            stop()
+            time.sleep(1)
+            start()
+        else:
+            print(f"Unknown command: {cmd}")
+            print("Usage: aya [up|down|status|opencode|restart]")
+    else:
+        menu()

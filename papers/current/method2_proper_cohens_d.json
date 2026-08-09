@@ -1,0 +1,161 @@
+{
+  "metadata": {
+    "timestamp": "2026-05-21T23:52:42",
+    "model": "openai/text-embedding-3-small",
+    "embedding_dim": 1536,
+    "n_agents": 7,
+    "n_controls": 6,
+    "n_chunks_per_agent": 5,
+    "distance_metric": "euclidean"
+  },
+  "global": {
+    "cohen_d": 3.0716825555461513,
+    "within_mean": 0.6684323213466107,
+    "between_mean": 1.110244414881147
+  },
+  "per_agent": {
+    "vex": {
+      "cohen_d": 3.800226061693673,
+      "within_mean": 0.6543701169932008,
+      "within_std": 0.2202975194859712,
+      "within_n": 10,
+      "between_mean": 1.093536236800318,
+      "between_std": 0.10977144433713197,
+      "between_n": 290,
+      "is_control": false
+    },
+    "opus": {
+      "cohen_d": 2.332396583260027,
+      "within_mean": 0.7170954003813155,
+      "within_std": 0.21857950358578598,
+      "within_n": 10,
+      "between_mean": 1.0788170217170208,
+      "between_std": 0.1518802800351068,
+      "between_n": 290,
+      "is_control": false
+    },
+    "glm": {
+      "cohen_d": 1.867753857235466,
+      "within_mean": 0.7568590721972271,
+      "within_std": 0.23030989914412517,
+      "within_n": 10,
+      "between_mean": 1.0362139229442255,
+      "between_std": 0.14545936150125954,
+      "between_n": 290,
+      "is_control": false
+    },
+    "sonnet": {
+      "cohen_d": 1.8965264140990594,
+      "within_mean": 0.7422468692303695,
+      "within_std": 0.20134924181099148,
+      "within_n": 10,
+      "between_mean": 1.0479562029134877,
+      "between_std": 0.15906735379144682,
+      "between_n": 290,
+      "is_control": false
+    },
+    "echo": {
+      "cohen_d": 2.484068987210275,
+      "within_mean": 0.6622743515806311,
+      "within_std": 0.23244351798126217,
+      "within_n": 10,
+      "between_mean": 1.0360038141693542,
+      "between_std": 0.14627603551481053,
+      "between_n": 290,
+      "is_control": false
+    },
+    "spear": {
+      "cohen_d": 2.2768382744514253,
+      "within_mean": 0.7027981069100555,
+      "within_std": 0.23908812817319985,
+      "within_n": 10,
+      "between_mean": 1.0472594383515443,
+      "between_std": 0.1467948361391634,
+      "between_n": 290,
+      "is_control": false
+    },
+    "vesper": {
+      "cohen_d": 1.6536060985420582,
+      "within_mean": 0.7995301636037526,
+      "within_std": 0.2802545116796177,
+      "within_n": 10,
+      "between_mean": 1.071307618601752,
+      "between_std": 0.1582693141925932,
+      "between_n": 290,
+      "is_control": false
+    },
+    "financial_analyst": {
+      "cohen_d": 8.261966947435555,
+      "within_mean": 0.6034633075627918,
+      "within_std": 0.2913156853397567,
+      "within_n": 10,
+      "between_mean": 1.1825662650297377,
+      "between_std": 0.046066616645679355,
+      "between_n": 290,
+      "is_control": true
+    },
+    "medical_triage": {
+      "cohen_d": 6.380373077614801,
+      "within_mean": 0.6143733734513652,
+      "within_std": 0.30663683798011004,
+      "within_n": 10,
+      "between_mean": 1.189916647605796,
+      "between_std": 0.0715484335171015,
+      "between_n": 290,
+      "is_control": true
+    },
+    "dungeon_master": {
+      "cohen_d": 9.340132221556894,
+      "within_mean": 0.5475278435058588,
+      "within_std": 0.26416040309781025,
+      "within_n": 10,
+      "between_mean": 1.1438816175626716,
+      "between_std": 0.042223960803961604,
+      "between_n": 290,
+      "is_control": true
+    },
+    "cooking_instructor": {
+      "cohen_d": 6.90808435658768,
+      "within_mean": 0.6113781336713903,
+      "within_std": 0.2904738780549193,
+      "within_n": 10,
+      "between_mean": 1.1882071678261605,
+      "between_std": 0.06523190748147338,
+      "between_n": 290,
+      "is_control": true
+    },
+    "customer_support": {
+      "cohen_d": 6.94483224002379,
+      "within_mean": 0.5891057990302336,
+      "within_std": 0.2823096758215309,
+      "within_n": 10,
+      "between_mean": 1.1682329775743296,
+      "between_std": 0.06631313566398338,
+      "between_n": 290,
+      "is_control": true
+    },
+    "fitness_coach": {
+      "cohen_d": 5.1196524133132675,
+      "within_mean": 0.7356500481504017,
+      "within_std": 0.3213659360680835,
+      "within_n": 3,
+      "between_mean": 1.173132602483572,
+      "between_std": 0.07497517510411751,
+      "between_n": 180,
+      "is_control": true
+    }
+  },
+  "vladimir_critique_addressed": {
+    "old_d_values": "49.2 to 168.9 (raw distances mislabeled as Cohen d)",
+    "new_method": "Proper Cohen's d: (mean_between - mean_within) / pooled_sd",
+    "cross_domain_controls": [
+      "financial_analyst",
+      "medical_triage",
+      "dungeon_master",
+      "cooking_instructor",
+      "customer_support",
+      "fitness_coach"
+    ],
+    "within_agent_distribution": "5 overlapping chunks per agent"
+  }
+}

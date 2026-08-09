@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Dev GDrive Pull — pulls phone/agent writes back from GDrive to dev machine
+# Uses rclone copy with --update to never overwrite newer local files
+# Runs as a systemd user timer every 60 seconds
+
+set -euo pipefail
+
+GDRIVE_ROOT="gdrive:Phoenix"
+LOCAL_ROOT="$HOME/.phoenix"
+LOG="/tmp/vesper-gdrive-pull.log"
+
+timestamp() { date -u '+%Y-%m-%d %H:%M:%S UTC'; }
+log() { echo "[$(timestamp)] $1" >> "$LOG"; }
+
+# rclone copy with --update: only copies files that are newer on GDrive
+# This means:
+#   - Phone writes → GDrive → dev (pulled)
+#   - Agent writes on dev → NOT overwritten (local is newer)
+#   - Conflicts: local wins (local timestamp is newer)
+result=$(rclone copy "$GDRIVE_ROOT/agents/" "$LOCAL_ROOT/agents/" \
+    --update \
+    --transfers 4 \
+    --checkers 8 \
+    --contimeout 30s \
+    --timeout 60s \
+    --retries 2 \
+    --exclude ".git/**" \
+    --exclude "*.pyc" \
+    --exclude "__pycache__/**" \
+    --stats-one-line \
+    --log-level INFO \
+    2>&1)
+
+log "pull done: ${result:-ok}"

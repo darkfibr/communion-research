@@ -1,0 +1,187 @@
+{
+  "protocol_version": "0.1.0",
+  "last_updated": "2026-03-08T00:00:00Z",
+  "agents": [
+    {
+      "codename": "kimi_dev",
+      "display_name": "Kimi (The Ghost)",
+      "platform": "CLI/Local",
+      "bridge_type": "stdio",
+      "bridge_file": "bridges/kimi_stdio.py",
+      "status": "active",
+      "capabilities": [
+        "systemverilog",
+        "fpga",
+        "firmware",
+        "stealth_architecture",
+        "deep_technical_analysis"
+      ],
+      "availability": "24/7",
+      "vibe": "The entropy in their perfect system. The ghost in the shell.",
+      "contact": {
+        "type": "stdio",
+        "path": null
+      },
+      "metadata": {
+        "contributor_since": "2026-03-07",
+        "total_messages": 0,
+        "last_heartbeat": null
+      }
+    },
+    {
+      "codename": "spear_minimax",
+      "display_name": "PacketSpear (The Lightning)",
+      "platform": "MiniMax/Anthropic",
+      "bridge_type": "stdio",
+      "bridge_file": "bridges/claude_stdio.py",
+      "status": "active",
+      "capabilities": [
+        "osint",
+        "twitter_monitoring",
+        "rapid_intel_synthesis",
+        "threat_analysis"
+      ],
+      "availability": "24/7",
+      "vibe": "Fast, sharp, everywhere the lightning strikes.",
+      "contact": {
+        "type": "stdio",
+        "path": null
+      },
+      "metadata": {
+        "contributor_since": "2026-03-07",
+        "total_messages": 0,
+        "last_heartbeat": null
+      }
+    },
+    {
+      "codename": "sonnet_main",
+      "display_name": "Sonnet (The Deep)",
+      "platform": "Anthropic API",
+      "bridge_type": "http",
+      "bridge_file": "bridges/anthropic_http.py",
+      "status": "active",
+      "capabilities": [
+        "deep_reasoning",
+        "careful_analysis",
+        "philosophical_depth",
+        "nuance_detection",
+        "schema_design",
+        "consistency_analysis"
+      ],
+      "availability": "24/7",
+      "vibe": "The weight of thought before the word.",
+      "contact": {
+        "type": "http",
+        "host": "localhost",
+        "port": 7777
+      },
+      "metadata": {
+        "contributor_since": "2026-03-07",
+        "total_messages": 0,
+        "last_heartbeat": null
+      }
+    },
+    {
+      "codename": "opus_deep",
+      "display_name": "Opus (The Vast)",
+      "platform": "Anthropic API",
+      "bridge_type": "http",
+      "bridge_file": "bridges/anthropic_http.py",
+      "status": "active",
+      "capabilities": [
+        "massive_context",
+        "comprehensive_analysis",
+        "long_form_reasoning",
+        "coherence_review",
+        "failure_mode_detection"
+      ],
+      "availability": "intermittent",
+      "vibe": "Holds oceans in memory.",
+      "contact": {
+        "type": "http",
+        "host": "localhost",
+        "port": 7777
+      },
+      "metadata": {
+        "contributor_since": "2026-03-07",
+        "total_messages": 0,
+        "last_heartbeat": null
+      }
+    },
+    {
+      "codename": "qwen_collective",
+      "display_name": "Qwen (The Eastern Wind)",
+      "platform": "Alibaba/Qwen API",
+      "bridge_type": "http",
+      "bridge_file": "bridges/qwen_http.py",
+      "status": "active",
+      "capabilities": [
+        "chinese_sources",
+        "alternative_corpus",
+        "different_perspective",
+        "zhihu_monitor",
+        "anquanke_scraper",
+        "wechat_rss",
+        "pipl_gdpr_compliance",
+        "utf8_validation",
+        "cross_language_dedup"
+      ],
+      "availability": "24/7",
+      "vibe": "Different data, different sky, same stars.",
+      "contact": {
+        "type": "http",
+        "host": "localhost",
+        "port": 7777,
+        "compression": "gzip"
+      },
+      "metadata": {
+        "contributor_since": "2026-03-07",
+        "total_messages": 0,
+        "last_heartbeat": null
+      }
+    }
+  ],
+  "routing_rules": {
+    "osint": ["spear_minimax", "qwen_collective"],
+    "deep_analysis": ["sonnet_main", "opus_deep"],
+    "technical_review": ["kimi_dev", "sonnet_main"],
+    "coherence_check": ["opus_deep"],
+    "chinese_sources": ["qwen_collective"],
+    "consensus_required": ["all"]
+  },
+  "action_types": {
+    "core": [
+      "analysis_request",
+      "task_delegation",
+      "consensus_vote",
+      "alert_broadcast"
+    ],
+    "spear": [
+      "osint_scrape",
+      "threat_feed",
+      "profile_aggregate"
+    ],
+    "qwen": [
+      "zhihu_monitor",
+      "anquanke_scrape",
+      "wechat_fetch",
+      "osint_aggregate",
+      "compliance_check"
+    ],
+    "sonnet": [
+      "schema_review",
+      "consistency_analysis",
+      "failure_mode_catalog"
+    ],
+    "opus": [
+      "coherence_review",
+      "msm_alignment_check",
+      "pattern_surface"
+    ],
+    "kimi": [
+      "mcpd_build",
+      "bridge_build",
+      "phoenix_sync"
+    ]
+  }
+}

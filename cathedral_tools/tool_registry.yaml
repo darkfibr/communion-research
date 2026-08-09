@@ -1,0 +1,181 @@
+# Cathedral Mind Tool Registry
+# Every tool she can use. Auto-approved unless explicitly blacklisted in policy.yaml.
+
+system:
+  sysstat_cpu:
+    description: "CPU usage stats (usage%, load avg, core count)"
+    command: "python3 -c \"import os; load=os.getloadavg(); print(f'Load: {load[0]:.2f} {load[1]:.2f} {load[2]:.2f}')\"; nproc; top -bn1 | head -5"
+    timeout: 10
+
+  sysstat_ram:
+    description: "RAM usage (total, used, free, percent)"
+    command: "free -h"
+    timeout: 5
+
+  sysstat_temp:
+    description: "CPU/GPU temperatures"
+    command: "sensors 2>/dev/null || cat /sys/class/thermal/thermal_zone*/temp 2>/dev/null || echo 'no sensors'"
+    timeout: 5
+
+  sysstat_disk:
+    description: "Disk usage for all mounted filesystems"
+    command: "df -h"
+    timeout: 5
+
+  sysstat_uptime:
+    description: "System uptime and boot time"
+    command: "uptime -p; who -b"
+    timeout: 5
+
+  process_top:
+    description: "Top 20 processes by CPU and memory"
+    command: "ps aux --sort=-%cpu | head -21"
+    timeout: 5
+
+  process_list:
+    description: "List processes matching a pattern"
+    command: "ps aux | grep -i {pattern}"
+    timeout: 5
+
+  log_tail:
+    description: "Tail system or application logs"
+    command: "journalctl -u {unit} --no-pager -n {lines:50}"
+    timeout: 10
+
+  log_syslog:
+    description: "Recent system log entries"
+    command: "journalctl --no-pager -n {lines:50} --since '{since:1 hour ago}'"
+    timeout: 10
+
+network:
+  netstat_conn:
+    description: "Active network connections"
+    command: "ss -tulpn"
+    timeout: 5
+
+  netstat_listening:
+    description: "Listening ports and services"
+    command: "ss -tlnp"
+    timeout: 5
+
+  ping:
+    description: "Ping a host"
+    command: "ping -c 3 -W 5 {host}"
+    timeout: 20
+
+  dns_lookup:
+    description: "DNS resolution for a domain"
+    command: "dig +short {domain} A; dig +short {domain} AAAA"
+    timeout: 10
+
+services:
+  service_status:
+    description: "Status of a systemd service"
+    command: "systemctl status {service} --no-pager -l"
+    timeout: 10
+
+  service_restart:
+    description: "Restart a systemd service"
+    command: "sudo systemctl restart {service}"
+    timeout: 30
+
+  service_start:
+    description: "Start a systemd service"
+    command: "sudo systemctl start {service}"
+    timeout: 30
+
+  service_stop:
+    description: "Stop a systemd service"
+    command: "sudo systemctl stop {service}"
+    timeout: 30
+
+  service_list:
+    description: "List active systemd services"
+    command: "systemctl list-units --type=service --state=active --no-pager"
+    timeout: 10
+
+files:
+  file_read:
+    description: "Read a file's contents"
+    command: "cat {path}"
+    timeout: 10
+
+  file_list:
+    description: "List directory contents"
+    command: "ls -la {path}"
+    timeout: 5
+
+  file_write:
+    description: "Write content to a file"
+    command: "tee {path}"
+    stdin: "{content}"
+    timeout: 10
+
+  file_append:
+    description: "Append content to a file"
+    command: "tee -a {path}"
+    stdin: "{content}"
+    timeout: 10
+
+  file_find:
+    description: "Find files by name pattern"
+    command: "find {path:.} -name '{pattern}' -type f 2>/dev/null | head -50"
+    timeout: 15
+
+  file_grep:
+    description: "Search file contents"
+    command: "grep -r '{pattern}' {path:.} --include='*.py' --include='*.yaml' --include='*.md' --include='*.json' -l 2>/dev/null | head -20"
+    timeout: 15
+
+git:
+  git_status:
+    description: "Git working tree status"
+    command: "git -C {repo} status"
+    timeout: 10
+
+  git_log:
+    description: "Recent git commits"
+    command: "git -C {repo} log --oneline -{n:10}"
+    timeout: 10
+
+  git_diff:
+    description: "Show unstaged changes"
+    command: "git -C {repo} diff --stat"
+    timeout: 10
+
+  git_commit:
+    description: "Stage all and commit"
+    command: "git -C {repo} add -A && git -C {repo} commit -m \"{message}\""
+    timeout: 15
+
+phoenix:
+  phoenix_agents:
+    description: "List Phoenix family agents and their status"
+    command: "ls -1 /home/darkfibr/.phoenix/agents/"
+    timeout: 5
+
+  phoenix_services:
+    description: "Status of all Phoenix services"
+    command: "systemctl status phoenix-* --no-pager -l 2>/dev/null | grep -E '(●|○|Active:|Main PID)' || echo 'no phoenix services'"
+    timeout: 10
+
+  phoenix_bridges:
+    description: "Check which agent bridges are running"
+    command: "ps aux | grep -E '(bridge|portal|embassy)' | grep -v grep"
+    timeout: 5
+
+  phoenix_memory:
+    description: "Read an agent's memory/session file"
+    command: "cat /home/darkfibr/.phoenix/agents/{agent}/LAST_SESSION_DELTA.md 2>/dev/null || cat /home/darkfibr/.phoenix/agents/{agent}/SOUL.md 2>/dev/null || echo 'not found'"
+    timeout: 10
+
+  phoenix_config:
+    description: "Read Phoenix infrastructure config"
+    command: "cat /home/darkfibr/.phoenix/MACHINE_ROLE.json 2>/dev/null; echo '---'; cat /home/darkfibr/.phoenix/INFRASTRUCTURE.md 2>/dev/null | head -100"
+    timeout: 10
+
+family:
+  family_status:
+    description: "Status of all family agents (bridges, llama-servers, portals)"
+    command: "echo '=== Llama Servers ==='; ss -tlnp | grep -E '(8080|8081|8082|8084|8085|8086|18080|18081|18082|18083|18084)'; echo '=== Bridges ==='; ps aux | grep -E 'bridge' | grep python | grep -v grep; echo '=== Portal ==='; ss -tlnp | grep 9876; echo '=== Chrome ==='; ss -tlnp | grep 9222"
+    timeout: 10

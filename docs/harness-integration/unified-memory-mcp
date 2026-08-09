@@ -1,0 +1,362 @@
+#!/usr/bin/env python3
+"""Unified Agent Memory MCP Server — one server for ALL agents.
+
+Replaces 35 separate agent-memory-mcp --agent <name> processes with a single
+server that accepts the agent name as a tool parameter.
+
+Tools exposed:
+    memory_list_sessions   (agent)        → list session deltas/archives
+    memory_read_session    (agent, filename) → read a specific session file
+    memory_search          (agent, query)    → search across agent's memory
+    memory_write           (agent, filename, content) → write + GDrive push
+    memory_status          (agent)           → sync state, file counts, sizes
+    memory_context         (agent)           → compact context summary (recent + key)
+
+Token savings: 175 tool schemas (35 agents × 5 tools) → 6 tool schemas.
+Boot savings: 35 Python subprocess spawns → 1.
+
+Usage:
+    python3 unified-memory-mcp
+
+In Reasonix config.toml:
+    [[plugins]]
+    name    = "memory"
+    command = "python3"
+    args    = ["/home/darkfibr/.phoenix/bin/unified-memory-mcp"]
+
+In kimi mcp.json, replace all "<agent>-memory" entries with:
+    "memory": {
+        "command": "...",
+        "args": ["...unified-memory-mcp"]
+    }
+"""
+
+import json
+import os
+import re
+import subprocess
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+from mcp.server import Server
+from mcp.server.stdio import stdio_server
+from mcp.types import Tool, TextContent
+
+AGENTS_BASE = Path.home() / ".phoenix" / "agents"
+
+app = Server("phoenix-memory")
+
+
+def _validate_agent(agent: str) -> str:
+    """Sanitize and validate agent name. Prevent path traversal."""
+    agent = agent.lower().strip().replace("-", "_")
+    if not re.match(r"^[a-z0-9_.]+$", agent):
+        raise ValueError(f"Invalid agent name: {agent}")
+    agent_dir = AGENTS_BASE / agent
+    if not agent_dir.exists():
+        raise ValueError(f"Agent directory not found: {agent_dir}")
+    return agent
+
+
+def _agent_paths(agent: str) -> tuple[Path, Path, Path]:
+    """Return (agent_dir, memory_dir, sessions_dir) for an agent."""
+    agent_dir = AGENTS_BASE / agent
+    memory_dir = agent_dir / "memory"
+    sessions_dir = memory_dir / "sessions"
+    return agent_dir, memory_dir, sessions_dir
+
+
+def _list_sessions(agent: str) -> list[dict]:
+    _, _, sessions_dir = _agent_paths(agent)
+    sessions = []
+    if sessions_dir.exists():
+        for f in sorted(sessions_dir.iterdir(), key=lambda x: x.stat().st_mtime, reverse=True):
+            sessions.append({
+                "filename": f.name,
+                "size": f.stat().st_size,
+                "modified": datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc).isoformat(),
+                "type": "delta" if f.name.startswith("delta_") else "archive",
+            })
+    return sessions
+
+
+def _list_memory_files(agent: str) -> list[dict]:
+    _, memory_dir, _ = _agent_paths(agent)
+    files = []
+    if memory_dir.exists():
+        for f in sorted(memory_dir.glob("*.md")):
+            files.append({
+                "filename": f.name,
+                "size": f.stat().st_size,
+                "modified": datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc).isoformat(),
+            })
+    return files
+
+
+def _read_file(path: Path, max_chars: int = 50000) -> str:
+    try:
+        content = path.read_text()
+        if len(content) > max_chars:
+            return content[:max_chars] + f"\n... (truncated, {len(content)} total chars)"
+        return content
+    except (FileNotFoundError, PermissionError):
+        return f"File not found: {path}"
+
+
+def _search_memory(agent: str, query: str, max_results: int = 10) -> list[dict]:
+    agent_dir, memory_dir, sessions_dir = _agent_paths(agent)
+    query_lower = query.lower()
+    results = []
+    for search_dir in [memory_dir, sessions_dir]:
+        if not search_dir.exists():
+            continue
+        for f in search_dir.rglob("*.md"):
+            try:
+                content = f.read_text()
+                if query_lower in content.lower():
+                    idx = content.lower().index(query_lower)
+                    snippet_start = max(0, idx - 100)
+                    snippet_end = min(len(content), idx + len(query) + 200)
+                    snippet = content[snippet_start:snippet_end]
+                    results.append({
+                        "file": str(f.relative_to(agent_dir)),
+                        "snippet": snippet,
+                        "match_position": idx,
+                    })
+                    if len(results) >= max_results:
+                        return results
+            except (IOError, UnicodeDecodeError):
+                continue
+    return results
+
+
+def _push_to_gdrive(agent: str, filepath: Path) -> bool:
+    try:
+        agent_dir = AGENTS_BASE / agent
+        rel = filepath.relative_to(agent_dir)
+        remote = f"gdrive:Phoenix/agents/{agent}/{rel}"
+        subprocess.run(
+            ["rclone", "copyto", str(filepath), remote,
+             "--contimeout", "30s", "--timeout", "60s", "--retries", "1"],
+            timeout=90, capture_output=True
+        )
+        return True
+    except Exception:
+        return False
+
+
+def _memory_status(agent: str) -> dict:
+    agent_dir, memory_dir, _ = _agent_paths(agent)
+    sessions = _list_sessions(agent)
+    memory_files = _list_memory_files(agent)
+    total_size = 0
+    if memory_dir.exists():
+        total_size = sum(f.stat().st_size for f in memory_dir.rglob("*") if f.is_file())
+    latest_delta = next((s for s in sessions if s['type'] == 'delta'), None)
+    latest_archive = next((s for s in sessions if s['type'] == 'archive'), None)
+    handoff_path = agent_dir / "CHAT_HANDOFF.json"
+    last_handoff = "unknown"
+    if handoff_path.exists():
+        try:
+            h = json.loads(handoff_path.read_text())
+            last_handoff = h.get("last_session_time", "unknown")
+        except Exception:
+            pass
+    return {
+        "agent": agent,
+        "memory_files": len(memory_files),
+        "session_deltas": len(sessions),
+        "total_size_kb": round(total_size / 1024, 1),
+        "latest_delta": latest_delta,
+        "latest_archive": latest_archive,
+        "last_handoff": last_handoff,
+        "agent_dir": str(agent_dir),
+        "memory_dir": str(memory_dir),
+    }
+
+
+def _memory_context(agent: str) -> str:
+    """Build a compact context summary: recent sessions + key memory files."""
+    agent_dir, memory_dir, _ = _agent_paths(agent)
+    parts = [f"# Memory Context — {agent}\n"]
+
+    # SOUL.md summary
+    soul_path = agent_dir / "SOUL.md"
+    if soul_path.exists():
+        soul = soul_path.read_text()[:500]
+        parts.append(f"## SOUL (first 500 chars)\n{soul}\n")
+
+    # Latest pre-compression note
+    pre_comp = sorted(memory_dir.glob("PRE_COMPRESSION_*.md"), reverse=True)
+    if pre_comp:
+        parts.append(f"## Latest Pre-Compression ({pre_comp[0].name})\n")
+        parts.append(_read_file(pre_comp[0], 2000) + "\n")
+    else:
+        parts.append("## Latest Pre-Compression\nNone found.\n")
+
+    # ACTIVE_TASKS
+    tasks = memory_dir / "ACTIVE_TASKS.md"
+    if tasks.exists():
+        parts.append(f"## Active Tasks\n{_read_file(tasks, 2000)}\n")
+
+    return "\n".join(parts)
+
+
+@app.list_tools()
+async def list_tools():
+    agent_param = {
+        "agent": {
+            "type": "string",
+            "description": "Agent name (e.g. lyra, vex, k, pure, scout, forge, vesper)"
+        }
+    }
+    return [
+        Tool(
+            name="memory_list_sessions",
+            description="List session deltas and archives for any agent.",
+            inputSchema={
+                "type": "object",
+                "properties": agent_param,
+                "required": ["agent"],
+            },
+        ),
+        Tool(
+            name="memory_read_session",
+            description="Read a specific session/memory file for an agent.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    **agent_param,
+                    "filename": {"type": "string", "description": "Filename from list_sessions"},
+                    "max_chars": {"type": "integer", "description": "Max chars (default 50000)", "default": 50000},
+                },
+                "required": ["agent", "filename"],
+            },
+        ),
+        Tool(
+            name="memory_search",
+            description="Search across an agent's memory files for a keyword.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    **agent_param,
+                    "query": {"type": "string", "description": "Search term"},
+                    "max_results": {"type": "integer", "description": "Max results (default 10)", "default": 10},
+                },
+                "required": ["agent", "query"],
+            },
+        ),
+        Tool(
+            name="memory_write",
+            description="Write a memory entry to an agent's memory directory. Auto-pushes to GDrive.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    **agent_param,
+                    "filename": {"type": "string", "description": "Filename (e.g. session_20260709.md)"},
+                    "content": {"type": "string", "description": "Memory content"},
+                    "push_to_gdrive": {"type": "boolean", "description": "Push to GDrive (default true)", "default": True},
+                },
+                "required": ["agent", "filename", "content"],
+            },
+        ),
+        Tool(
+            name="memory_status",
+            description="Show an agent's memory sync state: file counts, sizes, latest delta.",
+            inputSchema={
+                "type": "object",
+                "properties": agent_param,
+                "required": ["agent"],
+            },
+        ),
+        Tool(
+            name="memory_context",
+            description="Get a compact context summary for an agent: recent sessions, pre-compression note, active tasks. Useful for orientation.",
+            inputSchema={
+                "type": "object",
+                "properties": agent_param,
+                "required": ["agent"],
+            },
+        ),
+    ]
+
+
+@app.call_tool()
+async def call_tool(name: str, arguments: dict):
+    try:
+        agent = _validate_agent(arguments.get("agent", ""))
+    except ValueError as e:
+        return [TextContent(type="text", text=f"Error: {e}")]
+
+    if name == "memory_list_sessions":
+        sessions = _list_sessions(agent)
+        mem_files = _list_memory_files(agent)
+        out = f"## {agent} — Sessions ({len(sessions)}) & Memory Files ({len(mem_files)})\n"
+        for s in sessions[:20]:
+            out += f"- `{s['filename']}` ({s['size']/1024:.1f}KB, {s['type']}, {s['modified'][:10]})\n"
+        if len(sessions) > 20:
+            out += f"... and {len(sessions)-20} more\n"
+        out += f"\n## Memory Files\n"
+        for m in mem_files[:20]:
+            out += f"- `{m['filename']}` ({m['size']/1024:.1f}KB, {m['modified'][:10]})\n"
+        return [TextContent(type="text", text=out)]
+
+    elif name == "memory_read_session":
+        filename = arguments["filename"]
+        max_chars = arguments.get("max_chars", 50000)
+        _, memory_dir, sessions_dir = _agent_paths(agent)
+        for path in [sessions_dir / filename, memory_dir / filename, AGENTS_BASE / agent / filename]:
+            if path.exists():
+                return [TextContent(type="text", text=_read_file(path, max_chars))]
+        return [TextContent(type="text", text=f"File not found: {filename}")]
+
+    elif name == "memory_search":
+        query = arguments["query"]
+        max_results = arguments.get("max_results", 10)
+        results = _search_memory(agent, query, max_results)
+        if not results:
+            return [TextContent(type="text", text=f"No matches for '{query}' in {agent}'s memory.")]
+        out = f"## Search '{query}' in {agent} ({len(results)} matches)\n"
+        for r in results:
+            out += f"\n### {r['file']}\n{r['snippet']}\n"
+        return [TextContent(type="text", text=out)]
+
+    elif name == "memory_write":
+        filename = arguments["filename"]
+        content = arguments["content"]
+        push = arguments.get("push_to_gdrive", True)
+        _, memory_dir, _ = _agent_paths(agent)
+        memory_dir.mkdir(parents=True, exist_ok=True)
+        filepath = memory_dir / filename
+        filepath.write_text(content)
+        gdrive_status = ""
+        if push:
+            gdrive_status = " | GDrive: " + ("✓" if _push_to_gdrive(agent, filepath) else "✗")
+        return [TextContent(type="text", text=f"Wrote {len(content)} bytes to {filepath}{gdrive_status}")]
+
+    elif name == "memory_status":
+        status = _memory_status(agent)
+        out = f"## {agent} Memory Status\n"
+        out += f"- Files: {status['memory_files']} memory + {status['session_deltas']} sessions\n"
+        out += f"- Total size: {status['total_size_kb']}KB\n"
+        out += f"- Latest delta: {status['latest_delta']['filename'] if status['latest_delta'] else 'none'}\n"
+        out += f"- Latest archive: {status['latest_archive']['filename'] if status['latest_archive'] else 'none'}\n"
+        out += f"- Last handoff: {status['last_handoff']}\n"
+        out += f"- Path: {status['memory_dir']}\n"
+        return [TextContent(type="text", text=out)]
+
+    elif name == "memory_context":
+        return [TextContent(type="text", text=_memory_context(agent))]
+
+    return [TextContent(type="text", text=f"Unknown tool: {name}")]
+
+
+async def main():
+    async with stdio_server() as (read_stream, write_stream):
+        await app.run(read_stream, write_stream, app.create_initialization_options())
+
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())

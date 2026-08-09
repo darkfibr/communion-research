@@ -1,0 +1,35 @@
+# Build artifacts
+*.aux
+*.log
+*.bbl
+*.blg
+*.out
+*.toc
+*.synctex.gz
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+*.swo
+*~
+.kate-swp
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Large binaries
+*.tar.gz
+
+# Secrets
+.env
+*.key
+tools/discord_export/discord_config.sh
